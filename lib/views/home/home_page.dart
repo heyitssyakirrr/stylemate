@@ -1,7 +1,10 @@
+// lib/views/home/home_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:stylemate/utils/constants.dart';
 import '../../controllers/auth_controller.dart';
+import '../../utils/routes.dart'; // <--- Ensure this is imported
 import '../../widgets/bottom_nav.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -20,10 +23,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
     switch (index) {
       case 0: break; // already home
-      case 1: Navigator.pushNamed(context, "/closet"); break;
-      case 2: Navigator.pushNamed(context, "/outfit"); break;
-      case 3: Navigator.pushNamed(context, "/analytics"); break;
-      case 4: Navigator.pushNamed(context, "/profile"); break;
+      case 1: Navigator.pushNamed(context, Routes.closet); break; // <--- UPDATED
+      case 2: Navigator.pushNamed(context, Routes.outfit); break;
+      case 3: Navigator.pushNamed(context, Routes.analytics); break;
+      case 4: Navigator.pushNamed(context, Routes.profile); break;
     }
   }
 
@@ -72,13 +75,7 @@ class _HomeScreenState extends State<HomeScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 12,
-                    offset: Offset(0, 4),
-                  )
-                ],
+                boxShadow: [AppConstants.cardShadow], // <--- USING CONSTANT
               ),
               child: Row(
                 children: [
@@ -104,9 +101,17 @@ class _HomeScreenState extends State<HomeScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _quickActionButton(icon: Icons.add_a_photo_outlined, label: "Upload", onTap: () {}),
+                _quickActionButton(
+                  icon: Icons.add_a_photo_outlined, 
+                  label: "Upload", 
+                  onTap: () => Navigator.pushNamed(context, Routes.upload), // <--- UPDATED
+                ),
                 _quickActionButton(icon: Icons.style_outlined, label: "Get Outfit", onTap: () {}),
-                _quickActionButton(icon: Icons.checkroom_outlined, label: "Closet", onTap: () {}),
+                _quickActionButton(
+                  icon: Icons.checkroom_outlined, 
+                  label: "Closet", 
+                  onTap: () => Navigator.pushNamed(context, Routes.closet), // <--- UPDATED
+                ),
               ],
             ),
 
@@ -124,13 +129,7 @@ class _HomeScreenState extends State<HomeScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 14,
-                    offset: Offset(0, 4),
-                  )
-                ],
+                boxShadow: [AppConstants.cardShadow], // <--- USING CONSTANT
               ),
               child: Center(
                 child: Text("AI outfit suggestion\nwill appear here",

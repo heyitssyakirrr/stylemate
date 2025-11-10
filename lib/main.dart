@@ -1,3 +1,5 @@
+// lib/main.dart
+
 import 'package:flutter/material.dart';
 import 'package:stylemate/views/home/home_page.dart';
 import 'utils/app_theme.dart';
@@ -5,6 +7,8 @@ import 'utils/routes.dart';
 import 'views/splash/splash_page.dart';
 import 'views/auth/login_page.dart';
 import 'views/auth/register_page.dart';
+import 'views/upload/upload_page.dart'; // <--- NEW IMPORT
+import 'views/closet/closet_page.dart'; // <--- NEW IMPORT
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,8 +30,11 @@ class StyleMateApp extends StatelessWidget {
         Routes.auth: (context) => const LoginPage(),
         Routes.register: (context) => const RegisterPage(),
         Routes.home: (context) => const HomeScreen(),
-        // Add other routes like home, closet, etc.
+        Routes.upload: (context) => const UploadClothingPage(), // <--- MAPPED
+        Routes.closet: (context) => const ClosetPage(), // <--- MAPPED
+        // Outfit, Analytics, Profile will be mapped later
       },
+      // Note: ItemDetailsPage is navigated to using MaterialPageRoute since it requires an argument.
     );
   }
 }
