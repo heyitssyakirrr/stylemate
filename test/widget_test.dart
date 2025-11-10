@@ -9,22 +9,29 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:stylemate/main.dart';
+import 'package:stylemate/views/splash/splash_page.dart';
 
 void main() {
   testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+    // Increase the test surface size so the splash view layout does not overflow.
+    TestWidgetsFlutterBinding.ensureInitialized();
+    // Use the recommended WidgetTester.view APIs (replaces deprecated `window` test hooks).
+    tester.view.physicalSize = const Size(1024, 1366);
+    tester.view.devicePixelRatio = 1.0;
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Build our app.
+    await tester.pumpWidget(StyleMateApp());
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    // Verify the splash screen and app title are present.
+  expect(find.text('StyleMate'), findsOneWidget);
+  expect(find.byType(SplashPage), findsOneWidget);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  // Let any startup timers finish to avoid pending timer errors in tests.
+  await tester.pump(const Duration(milliseconds: 1600));
+  await tester.pumpAndSettle();
+
+    // Clear test view overrides.
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
   });
 }

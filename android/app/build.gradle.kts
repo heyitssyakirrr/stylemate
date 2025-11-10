@@ -8,7 +8,9 @@ plugins {
 android {
     namespace = "com.example.stylemate"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // Set explicit NDK version to match plugin requirements and avoid mismatches.
+    // Using the highest required side-by-side NDK version (replace if you change plugins):
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
