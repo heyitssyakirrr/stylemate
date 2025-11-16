@@ -7,8 +7,9 @@ class Routes {
   static const String home = '/home';
   static const String upload = '/upload';
   static const String closet = '/closet';
-  static const String outfit = '/outfit';
+  static const String outfit = '/outfit'; // Form Page
   static const String profile = '/profile';
-  static const String analytics = '/analytics'; // Referenced in home_page navigation
-  static const String itemDetails = '/item-details'; // For the details page (can also be handled via arguments, but declared here for completeness)
+  static const String analytics = '/analytics'; 
+  static const String itemDetails = '/item-details'; 
+  static const String outfitResult = '/outfit-result'; // Result Page (for reference)
 }
