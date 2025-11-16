@@ -122,6 +122,23 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
 
+                    // Forgot Password Link
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: GestureDetector(
+                        onTap: () => Navigator.pushNamed(context, Routes.forgotPassword), // <--- NEW LINK
+                        child: Text(
+                          "Forgot Password?",
+                          style: GoogleFonts.poppins(
+                            color: Colors.black54,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12), // Adjusted spacing
+                    
                     // Sign In Button
                     SizedBox(
                       width: double.infinity,

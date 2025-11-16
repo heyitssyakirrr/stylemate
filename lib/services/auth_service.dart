@@ -1,3 +1,5 @@
+// lib/services/auth_service.dart
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthService {
@@ -14,6 +16,13 @@ class AuthService {
       password: password,
     );
   }
+
+  // --- FIX APPLIED ---
+  Future<void> resetPasswordForEmail(String email) async {
+    // This calls the Supabase API to send the reset link to the provided email.
+    await _supabase.auth.resetPasswordForEmail(email);
+  }
+  // -------------------
 
   Future<void> signOut() async {
     await _supabase.auth.signOut();

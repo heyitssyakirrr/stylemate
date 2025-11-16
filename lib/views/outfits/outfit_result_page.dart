@@ -148,7 +148,7 @@ class OutfitResultPage extends StatelessWidget {
         Expanded(
           child: ElevatedButton.icon(
             icon: const Icon(Icons.check_circle_outline, color: Colors.white),
-            label: const Text("Mark as Worn"),
+            label: const Text("Mark as Worn", style: TextStyle(color: Colors.white)), // <--- FIX APPLIED
             onPressed: () => _markAsWorn(context, outfit),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppConstants.primaryAccent,

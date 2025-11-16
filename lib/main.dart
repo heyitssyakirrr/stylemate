@@ -11,6 +11,8 @@ import 'views/auth/login_page.dart';
 import 'views/auth/register_page.dart';
 import 'views/upload/upload_page.dart'; // <--- NEW IMPORT
 import 'views/closet/closet_page.dart'; // <--- NEW IMPORT
+import 'views/analytics/analytics_page.dart';
+import 'views/auth/forgot_password_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,6 +38,8 @@ class StyleMateApp extends StatelessWidget {
         Routes.closet: (context) => const ClosetPage(), // <--- MAPPED
         Routes.profile: (context) => const ProfilePage(),
         Routes.outfit: (context) => const OutfitPage(), // <--- MAPPED
+        Routes.analytics: (context) => const AnalyticsPage(),
+        Routes.forgotPassword: (context) => const ForgotPasswordPage(),
         // Outfit, Analytics, Profile will be mapped later
       },
       // Note: ItemDetailsPage is navigated to using MaterialPageRoute since it requires an argument.
