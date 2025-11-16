@@ -1,6 +1,5 @@
 // lib/models/clothing_item.dart
 
-import 'package:flutter/foundation.dart';
 
 class ClothingItem {
   final String? id;

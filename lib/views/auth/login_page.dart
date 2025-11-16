@@ -1,7 +1,10 @@
+// lib/views/auth/login_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../controllers/auth_controller.dart';
 import '../../utils/routes.dart';
+import '../../utils/constants.dart'; // <--- NEW IMPORT
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -37,46 +40,52 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xffF8F5F2),
+      backgroundColor: AppConstants.background,
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(AppConstants.kPadding * 1.5), // 24.0
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Logo
+              // --- Logo/Image ---
               ClipRRect(
-                borderRadius: BorderRadius.circular(15), // Adjust curve radius
+                borderRadius: BorderRadius.circular(20),
                 child: Image.asset(
                   "assets/logo.png",
-                  width: 150,
-                  height: 150,
+                  width: 120, // Slightly smaller logo for focus on text
+                  height: 120,
                   fit: BoxFit.cover,
                 ),
               ),
 
-              SizedBox(height: 16), // <-- Adds 16 pixels of space
+              const SizedBox(height: 24),
 
+              // --- Heading ---
               Text(
                 "Welcome Back 👋",
                 style: GoogleFonts.poppins(
-                    fontSize: 20, fontWeight: FontWeight.w600),
+                    fontSize: 28, 
+                    fontWeight: FontWeight.w700,
+                    color: AppConstants.primaryAccent,
+                  ),
               ),
-              const SizedBox(height: 24),
+              Text(
+                "Sign in to access your virtual closet",
+                style: GoogleFonts.poppins(
+                    fontSize: 16, 
+                    fontWeight: FontWeight.w400,
+                    color: Colors.black54,
+                  ),
+              ),
+              const SizedBox(height: 32),
 
-              // Card Container
+              // --- Card Container (Stylized) ---
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 16,
-                      offset: Offset(0, 4),
-                    )
-                  ],
+                  borderRadius: BorderRadius.circular(AppConstants.kRadius),
+                  boxShadow: [AppConstants.cardShadow],
                 ),
                 child: Column(
                   children: [
@@ -87,6 +96,7 @@ class _LoginPageState extends State<LoginPage> {
                       decoration: const InputDecoration(
                         labelText: "Email",
                         border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.email_outlined),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -98,14 +108,18 @@ class _LoginPageState extends State<LoginPage> {
                       decoration: const InputDecoration(
                         labelText: "Password",
                         border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.lock_outline),
                       ),
                     ),
                     const SizedBox(height: 20),
 
                     if (_errorMessage != null)
-                      Text(
-                        _errorMessage!,
-                        style: const TextStyle(color: Colors.red),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12.0),
+                        child: Text(
+                          _errorMessage!,
+                          style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w500),
+                        ),
                       ),
 
                     // Sign In Button
@@ -114,34 +128,42 @@ class _LoginPageState extends State<LoginPage> {
                       child: ElevatedButton(
                         onPressed: _loading ? null : _login,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black87,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          backgroundColor: AppConstants.primaryAccent,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
                         ),
                         child: _loading
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text(
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                              )
+                            : Text(
                                 "Sign In",
-                                style: TextStyle(color: Colors.white),
+                                style: GoogleFonts.poppins(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                       ),
                     ),
 
                     const SizedBox(height: 16),
-
+                    
                     // Register Link
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Text("Don’t have an account? "),
                         GestureDetector(
-                          onTap: () => Navigator.pushNamed(context, Routes.register),
-                          child: const Text(
+                          onTap: () => Navigator.pushReplacementNamed(context, Routes.register),
+                          child: Text(
                             "Register",
-                            style: TextStyle(
-                              color: Colors.blue,
+                            style: GoogleFonts.poppins(
+                              color: AppConstants.primaryAccent,
                               fontWeight: FontWeight.w600,
                             ),
                           ),

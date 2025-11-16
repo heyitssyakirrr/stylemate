@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:stylemate/views/home/home_page.dart';
+import 'package:stylemate/views/profile/profile_page.dart';
 import 'utils/app_theme.dart';
 import 'utils/routes.dart';
 import 'views/splash/splash_page.dart';
@@ -32,6 +33,7 @@ class StyleMateApp extends StatelessWidget {
         Routes.home: (context) => const HomeScreen(),
         Routes.upload: (context) => const UploadClothingPage(), // <--- MAPPED
         Routes.closet: (context) => const ClosetPage(), // <--- MAPPED
+        Routes.profile: (context) => const ProfilePage(),
         // Outfit, Analytics, Profile will be mapped later
       },
       // Note: ItemDetailsPage is navigated to using MaterialPageRoute since it requires an argument.

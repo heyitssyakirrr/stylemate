@@ -19,8 +19,6 @@ class _ClosetPageState extends State<ClosetPage> {
   String _selectedFilter = 'All Items';
   String _searchQuery = '';
   
-  late List<ClothingItem> _items;
-
   final List<String> _filters = [
     'All Items',
     'T-Shirt',
@@ -30,19 +28,33 @@ class _ClosetPageState extends State<ClosetPage> {
     'Footwear',
     'Accessories'
   ];
-
+  
   @override
   void initState() {
     super.initState();
-    _items = _controller.mockItems; 
+    // Load initial items upon creation
+    _controller.filterItems(_searchQuery, _selectedFilter);
   }
   
   @override
   void dispose() {
-    _controller.dispose();
+    _controller.dispose(); 
     super.dispose();
   }
+  
+  void _updateFilter(String filter) {
+    setState(() {
+      _selectedFilter = filter;
+      _controller.filterItems(_searchQuery, _selectedFilter);
+    });
+  }
 
+  void _updateSearch(String query) {
+    setState(() {
+      _searchQuery = query;
+      _controller.filterItems(_searchQuery, _selectedFilter);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,11 +77,7 @@ class _ClosetPageState extends State<ClosetPage> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppConstants.kPadding * 1.5, vertical: 12.0),
             child: TextField(
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                });
-              },
+              onChanged: _updateSearch,
               decoration: InputDecoration(
                 labelText: 'Search items...',
                 prefixIcon: const Icon(Icons.search),
@@ -99,9 +107,7 @@ class _ClosetPageState extends State<ClosetPage> {
                       label: Text(_filters[index]),
                       selected: _selectedFilter == _filters[index],
                       onSelected: (selected) {
-                        setState(() {
-                          _selectedFilter = selected ? _filters[index] : 'All Items';
-                        });
+                        _updateFilter(selected ? _filters[index] : 'All Items');
                       },
                       selectedColor: AppConstants.primaryAccent.withOpacity(0.8),
                       backgroundColor: Colors.white,
@@ -124,23 +130,35 @@ class _ClosetPageState extends State<ClosetPage> {
 
           const SizedBox(height: 16),
 
-          // Item Grid View
+          // Item Grid View (Now uses ValueListenableBuilder)
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppConstants.kPadding),
-              child: GridView.builder(
-                itemCount: _items.length,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                  childAspectRatio: 0.7,
-                ),
-                itemBuilder: (context, index) {
-                  final item = _items[index];
-                  return _buildClosetItem(context, item);
-                },
-              ),
+            child: ValueListenableBuilder<List<ClothingItem>>(
+              valueListenable: _controller.itemsNotifier,
+              builder: (context, items, child) {
+                if (items.isEmpty) {
+                  return Center(
+                    child: Text('Your closet is empty. Upload an item first!',
+                        style: GoogleFonts.poppins(color: Colors.black54)),
+                  );
+                }
+                
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppConstants.kPadding),
+                  child: GridView.builder(
+                    itemCount: items.length,
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                      childAspectRatio: 0.7,
+                    ),
+                    itemBuilder: (context, index) {
+                      final item = items[index];
+                      return _buildClosetItem(context, item);
+                    },
+                  ),
+                );
+              },
             ),
           ),
         ],

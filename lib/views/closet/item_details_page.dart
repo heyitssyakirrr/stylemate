@@ -68,9 +68,11 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context); // Close dialog
-              await _controller.deleteItem(_editableItem);
+              // Pass ID to controller for deletion, which will update the list
+              await _controller.deleteItem(_editableItem.id!); 
               if (mounted) {
-                Navigator.pop(context); // Close details page
+                // Return to the previous screen (the ClosetPage) after deletion
+                Navigator.pop(context); 
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Item successfully deleted.')),
                 );
@@ -212,7 +214,7 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
               // Dynamic fields: Tags
               ..._editableItem.primaryTags.entries.map((entry) {
                 return _buildTagRow(entry.key, entry.value, isEditing);
-              }).toList(),
+              }),
               // Static fields: Brand/Notes
               _buildInfoRow('Brand', _editableItem.brand ?? 'N/A', isEditing),
               _buildInfoRow(
@@ -281,7 +283,7 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
       onChanged: (newValue) {
         if (newValue != null) {
           onUpdate(newValue);
-          setState(() {}); // Trigger rebuild to reflect change in case it's displayed elsewhere
+          setState(() {}); 
         }
       },
     );
