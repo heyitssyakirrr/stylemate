@@ -1,56 +1,53 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../models/clothing_item.dart';
+import '../models/outfit.dart';
 
 class OutfitController extends ChangeNotifier {
-  final SupabaseClient _supabase = Supabase.instance.client;
-  
-  List<ClothingItem> _recommendations = [];
-  bool _isLoading = false;
-
-  List<ClothingItem> get recommendations => _recommendations;
-  bool get isLoading => _isLoading;
+  final _supabase = Supabase.instance.client;
+  Outfit? currentOutfit;
+  bool isLoading = false;
 
   Future<void> generateOutfit({
     required String usage,
     required String season,
     required String color,
-    String? anchorItemId, // Optional anchor item ID
+    String? anchorItemId,
+    required List<String> slots, // ["Top", "Bottom", "Outerwear"]
   }) async {
     try {
-      _setLoading(true);
+      isLoading = true; notifyListeners();
 
-      // Call the Supabase Edge Function
-      final response = await _supabase.functions.invoke(
+      final res = await _supabase.functions.invoke(
         'outfit-recommender',
         body: {
-          'constraints': {
-            'usage': [usage],
-            'season': [season],
-            'baseColour': [color],
-          },
+          'constraints': {'usage': [usage], 'season': [season], 'baseColour': [color]},
           'anchor_id': anchorItemId,
+          'required_slots': slots,
+          'user_id': _supabase.auth.currentUser!.id,
         },
       );
 
-      // Parse response (Assuming function returns list of item IDs or full objects)
-      final data = response.data;
-      if (data != null && data['recommendations'] != null) {
-         // Fetch full item details for the recommended IDs if function only returns IDs
-         // Or parse directly if function returns full objects
-         // ... Implementation depends on your Edge Function response structure
-         print("Recommendations received: ${data['recommendations']}");
+      if (res.data != null) {
+        currentOutfit = Outfit.fromJson(res.data);
       }
-      
     } catch (e) {
-      print('Recommendation error: $e');
+      debugPrint("Recommendation Error: $e");
     } finally {
-      _setLoading(false);
+      isLoading = false; notifyListeners();
     }
   }
 
-  void _setLoading(bool value) {
-    _isLoading = value;
-    notifyListeners();
+  // New: Mark as Worn Logic
+  Future<void> markAsWorn() async {
+    if (currentOutfit == null) return;
+    for (var item in currentOutfit!.items) {
+      // Use RPC if you created one, or simpler update logic:
+      // Note: Incrementing safely usually requires an RPC or two calls. 
+      // Simplified here for clarity:
+      await _supabase.from('clothing_items').update({
+        'wear_count': item.wearCount + 1,
+        'last_worn_date': DateTime.now().toIso8601String(),
+      }).eq('id', item.id);
+    }
   }
 }

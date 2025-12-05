@@ -1,23 +1,26 @@
-// lib/models/outfit.dart
-
 import 'clothing_item.dart';
 
-// Represents a complete recommended outfit
 class Outfit {
-  final String title;
-  final String description;
-  final String occasion;
   final List<ClothingItem> items;
-  final String suggestionLogic; // For the "Why this outfit?" UX
+  final int harmonyScore;
+  final String suggestionLogic;
+  final List<Outfit> alternatives;
 
   Outfit({
-    required this.title,
-    required this.description,
     required this.items,
-    required this.occasion,
+    required this.harmonyScore,
     required this.suggestionLogic,
+    this.alternatives = const [],
   });
 
-  // Helper method to get all individual items
-  List<ClothingItem> get allItems => items;
+  factory Outfit.fromJson(Map<String, dynamic> json) {
+    return Outfit(
+      items: (json['items'] as List).map((i) => ClothingItem.fromJson(i)).toList(),
+      harmonyScore: (json['harmonyScore'] as num).toInt(),
+      suggestionLogic: json['suggestionLogic'] ?? "AI Recommendation",
+      alternatives: json['alternatives'] != null
+          ? (json['alternatives'] as List).map((a) => Outfit.fromJson(a)).toList()
+          : [],
+    );
+  }
 }

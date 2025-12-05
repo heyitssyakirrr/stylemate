@@ -69,7 +69,7 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
             onPressed: () async {
               Navigator.pop(context); // Close dialog
               // Pass ID to controller for deletion, which will update the list
-              await _controller.deleteItem(_editableItem.id!); 
+              await _controller.deleteItem(_editableItem.id); 
               if (mounted) {
                 // Return to the previous screen (the ClosetPage) after deletion
                 Navigator.pop(context); 
