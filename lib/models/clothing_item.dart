@@ -3,7 +3,7 @@ class ClothingItem {
   final String userId;
   final String imageUrl;
   
-  // Tags
+  // Classification Tags
   final String subCategory;
   final String articleType;
   final String baseColour;
@@ -15,7 +15,7 @@ class ClothingItem {
   final int wearCount;
   final DateTime? lastWornDate;
 
-  // AI Feature (Hidden from UI usually)
+  // AI Embedding
   final List<double> embedding;
 
   ClothingItem({
@@ -34,6 +34,26 @@ class ClothingItem {
   });
 
   factory ClothingItem.fromJson(Map<String, dynamic> json) {
+    // Safe embedding parsing
+    List<double> parsedEmbedding = [];
+    if (json['embedding'] != null) {
+      if (json['embedding'] is String) {
+        // Handle string vector format "[0.1, 0.2...]"
+        final String raw = json['embedding'];
+        parsedEmbedding = raw
+            .replaceAll('[', '')
+            .replaceAll(']', '')
+            .split(',')
+            .map((e) => double.tryParse(e.trim()) ?? 0.0)
+            .toList();
+      } else if (json['embedding'] is List) {
+        // Handle standard JSON array
+        parsedEmbedding = (json['embedding'] as List)
+            .map((e) => (e as num).toDouble())
+            .toList();
+      }
+    }
+
     return ClothingItem(
       id: json['id'].toString(),
       userId: json['user_id'] ?? '',
@@ -46,10 +66,9 @@ class ClothingItem {
       season: json['season'] ?? '',
       wearCount: json['wear_count'] ?? 0,
       lastWornDate: json['last_worn_date'] != null 
-          ? DateTime.parse(json['last_worn_date']) : null,
-      embedding: json['embedding'] != null 
-          ? (json['embedding'] as List).map((e) => (e as num).toDouble()).toList() 
-          : [],
+          ? DateTime.parse(json['last_worn_date']) 
+          : null,
+      embedding: parsedEmbedding,
     );
   }
 
@@ -65,7 +84,7 @@ class ClothingItem {
       'season': season,
       'wear_count': wearCount,
       'last_worn_date': lastWornDate?.toIso8601String(),
-      'embedding': embedding,
+      'embedding': embedding, 
     };
   }
 }
