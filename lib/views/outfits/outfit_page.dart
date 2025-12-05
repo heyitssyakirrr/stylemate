@@ -17,7 +17,7 @@ class _OutfitPageState extends State<OutfitPage> {
   final OutfitController _controller = OutfitController();
   
   // Local state to hold form data
-  Map<String, dynamic> _criteria = {
+  final Map<String, dynamic> _criteria = {
     'Usage': null,
     'Occasion': null,
     'ColorPreference': null,
