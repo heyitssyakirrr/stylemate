@@ -1,3 +1,5 @@
+// lib/controllers/auth_controller.dart
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
 
@@ -27,6 +29,20 @@ class AuthController {
       return e.toString();
     }
   }
+  
+  // --- NEW: Forgot Password Logic ---
+  Future<String?> sendPasswordResetLink(String email) async {
+    try {
+      await _authService.resetPasswordForEmail(email);
+      return null; // success
+    } on AuthException catch (e) {
+      // Catch specific Supabase errors, though often it returns a generic message for security
+      return e.message; 
+    } catch (e) {
+      return "An unknown error occurred. Please try again.";
+    }
+  }
+  // ------------------------------------
 
   Future<void> signOut() async {
     await _authService.signOut();

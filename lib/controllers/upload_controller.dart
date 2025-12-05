@@ -1,120 +1,99 @@
-// lib/controllers/upload_controller.dart
-
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/clothing_item.dart';
-// Note: In a real app, you would import a DataService here (e.g., FirestoreService)
+import '../services/ml_service.dart';
 
-class UploadController {
-  // State Notifiers: Used to manage state changes observed by the UI
-  final ValueNotifier<XFile?> selectedImage = ValueNotifier(null);
-  final ValueNotifier<bool> isProcessing = ValueNotifier(false);
-  final ValueNotifier<String?> errorMessage = ValueNotifier(null);
-  final ValueNotifier<ClothingItem> _itemNotifier;
+class UploadController extends ChangeNotifier {
+  final _supabase = Supabase.instance.client;
+  final _mlService = MLService();
 
-  // Public getter to get the current item being edited.
-  ClothingItem get currentItem => _itemNotifier.value;
-  ValueNotifier<ClothingItem> get itemNotifier => _itemNotifier;
-
-
-  UploadController() : _itemNotifier = ValueNotifier(ClothingItem(imageUrl: 'assets/logo.png')) {
-    // Initialize the item with a blank state
-  }
+  File? _selectedImage;
+  bool _isLoading = false;
   
-  void _resetItem() {
-    // We use a mock URL here for development until a real image is selected/uploaded
-    _itemNotifier.value = ClothingItem(imageUrl: 'assets/logo.png'); 
+  // Controllers for editing the tags
+  final subCategoryCtrl = TextEditingController();
+  final articleTypeCtrl = TextEditingController();
+  final baseColourCtrl = TextEditingController();
+  final usageCtrl = TextEditingController();
+  final genderCtrl = TextEditingController();
+  final seasonCtrl = TextEditingController();
+  
+  List<double> _currentEmbedding = [];
+
+  File? get selectedImage => _selectedImage;
+  bool get isLoading => _isLoading;
+
+  UploadController() {
+    _mlService.loadModel();
   }
 
-
-  /// Simulates picking an image from the gallery or camera.
   Future<void> pickImage(ImageSource source) async {
+    final picked = await ImagePicker().pickImage(source: source);
+    if (picked == null) return;
+    
+    _selectedImage = File(picked.path);
+    notifyListeners();
+    await _classifyAndExtract();
+  }
+
+  Future<void> _classifyAndExtract() async {
+    if (_selectedImage == null) return;
     try {
-      final picker = ImagePicker();
-      final image = await picker.pickImage(source: source);
+      _isLoading = true; notifyListeners();
+      
+      final result = _mlService.classifyAndExtract(_selectedImage!);
+      final tags = result['tags'] as Map<String, String>;
+      _currentEmbedding = result['embedding'] as List<double>;
 
-      if (image != null) {
-        selectedImage.value = image;
-        
-        // Update the item with the temporary local path and trigger UI rebuild
-        final newItem = _itemNotifier.value;
-        newItem.imageUrl = image.path; // <--- FIX APPLIED: imageUrl is now mutable
-        _itemNotifier.value = newItem; // Notify listeners with the updated item
+      // Auto-fill form
+      subCategoryCtrl.text = tags['subCategory'] ?? '';
+      articleTypeCtrl.text = tags['articleType'] ?? '';
+      baseColourCtrl.text = tags['baseColour'] ?? '';
+      usageCtrl.text = tags['usage'] ?? '';
+      genderCtrl.text = tags['gender'] ?? '';
+      seasonCtrl.text = tags['season'] ?? '';
 
-        await _fetchTags(image);
-      }
     } catch (e) {
-      errorMessage.value = "Failed to pick image: $e";
-      selectedImage.value = null;
+      debugPrint("ML Error: $e");
+    } finally {
+      _isLoading = false; notifyListeners();
     }
   }
 
-  /// Simulates calling the AI/ML service to get tags.
-  Future<void> _fetchTags(XFile imageFile) async {
-    isProcessing.value = true;
-    errorMessage.value = null;
+  Future<void> uploadItem(BuildContext context) async {
+    if (_selectedImage == null) return;
+    try {
+      _isLoading = true; notifyListeners();
+      final userId = _supabase.auth.currentUser!.id;
+      final path = '$userId/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      
+      // 1. Upload Image
+      await _supabase.storage.from('clothing_items').upload(path, _selectedImage!);
+      final url = _supabase.storage.from('clothing_items').getPublicUrl(path);
 
-    // Simulate AI model latency
-    await Future.delayed(const Duration(milliseconds: 1500));
-    
-    // MOCK AI RESULTS
-    final updatedItem = _itemNotifier.value;
-    updatedItem.category = 'T-Shirt';
-    updatedItem.color = 'Soft Blue';
-    updatedItem.pattern = 'Solid';
-    updatedItem.season = 'Summer';
-    updatedItem.usage = 'Active Wear';
-    
-    _itemNotifier.value = updatedItem; // Update and notify listeners
-    
-    isProcessing.value = false;
-  }
+      // 2. Save Metadata + Embedding
+      final item = ClothingItem(
+        id: '', userId: userId, imageUrl: url,
+        subCategory: subCategoryCtrl.text,
+        articleType: articleTypeCtrl.text,
+        baseColour: baseColourCtrl.text,
+        usage: usageCtrl.text,
+        gender: genderCtrl.text,
+        season: seasonCtrl.text,
+        embedding: _currentEmbedding,
+      );
 
-  /// Updates a specific tag field in the current item.
-  void updateTag(String field, String value) {
-    final updatedItem = _itemNotifier.value;
-    
-    switch (field) {
-      case "Category": updatedItem.category = value; break;
-      case "Color": updatedItem.color = value; break;
-      case "Season": updatedItem.season = value; break;
-      case "Brand": updatedItem.brand = value; break;
-      case "Custom Note": updatedItem.customNote = value; break;
-      default: return; // Ignore unknown fields
+      var data = item.toJson();
+      data.remove('id'); // let DB generate it
+      await _supabase.from('clothing_items').insert(data);
+
+      if(context.mounted) Navigator.pop(context);
+    } catch (e) {
+      debugPrint("Upload Error: $e");
+    } finally {
+      _isLoading = false; notifyListeners();
     }
-    
-    _itemNotifier.value = updatedItem; // Update and notify listeners
-  }
-
-
-  /// Saves the final, tagged item to the virtual closet (database).
-  Future<bool> saveItem() async {
-    if (selectedImage.value == null) {
-      errorMessage.value = "Please select an image first.";
-      return false;
-    }
-
-    isProcessing.value = true;
-    errorMessage.value = null;
-
-    // MOCK SAVE OPERATION to DB
-    debugPrint("Saving item: ${_itemNotifier.value.toMap()}");
-    await Future.delayed(const Duration(seconds: 2));
-    
-    // Assume success
-    isProcessing.value = false;
-    
-    // Reset controller state after successful save
-    selectedImage.value = null;
-    _resetItem();
-
-    return true;
-  }
-
-  void dispose() {
-    selectedImage.dispose();
-    isProcessing.dispose();
-    errorMessage.dispose();
-    _itemNotifier.dispose();
   }
 }

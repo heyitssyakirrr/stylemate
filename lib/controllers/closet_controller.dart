@@ -1,71 +1,45 @@
-// lib/controllers/closet_controller.dart
-
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/clothing_item.dart';
 
-class ClosetController {
-  // Mock data stored privately for manipulation
-  final List<ClothingItem> _mockItems = [
-    ClothingItem(id: '1', imageUrl: 'assets/logo.png', category: 'T-Shirt', color: 'White', season: 'Summer', wearCount: 15, brand: 'Aura Fit'),
-    ClothingItem(id: '2', imageUrl: 'assets/logo.png', category: 'Jeans', color: 'Blue', season: 'All-Season', wearCount: 8, brand: 'Levi\'s'),
-    ClothingItem(id: '3', imageUrl: 'assets/logo.png', category: 'Jacket', color: 'Black', season: 'Winter', wearCount: 3, brand: 'The North Face'),
-    ClothingItem(id: '4', imageUrl: 'assets/logo.png', category: 'Dress', color: 'Red', season: 'Summer', wearCount: 20, brand: 'Zara'),
-  ];
-  
-  // ValueNotifier to hold the currently filtered and displayed list of items
-  final ValueNotifier<List<ClothingItem>> _itemsNotifier;
-  ValueNotifier<List<ClothingItem>> get itemsNotifier => _itemsNotifier;
+class ClosetController extends ChangeNotifier {
+  final _supabase = Supabase.instance.client;
+  List<ClothingItem> _items = [];
+  bool _isLoading = false;
 
-  final ValueNotifier<bool> isEditing = ValueNotifier(false);
+  List<ClothingItem> get items => _items;
+  bool get isLoading => _isLoading;
 
-  ClosetController() : _itemsNotifier = ValueNotifier([]) {
-    // Initialize the notifier with the full mock data
-    _itemsNotifier.value = List.from(_mockItems);
-  }
+  Future<void> fetchItems() async {
+    _isLoading = true;
+    notifyListeners();
 
-  /// Filters and searches the closet based on user input.
-  void filterItems(String query, String filter) {
-    List<ClothingItem> results = List.from(_mockItems);
+    try {
+      final userId = _supabase.auth.currentUser!.id;
+      final response = await _supabase
+          .from('clothing_items')
+          .select()
+          .eq('user_id', userId)
+          .order('created_at', ascending: false);
 
-    if (filter != 'All Items') {
-      results = results.where((item) => item.category == filter).toList();
-    }
-
-    if (query.isNotEmpty) {
-      results = results
-          .where((item) =>
-              item.category.toLowerCase().contains(query.toLowerCase()) ||
-              item.brand!.toLowerCase().contains(query.toLowerCase()))
+      _items = (response as List)
+          .map((item) => ClothingItem.fromJson(item))
           .toList();
+    } catch (e) {
+      debugPrint('Error fetching items: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
-    _itemsNotifier.value = results; // Update notifier to refresh UI
   }
 
-  /// Simulates marking the item as worn.
-  Future<void> markAsWorn(ClothingItem item) async {
-    item.wearCount += 1;
-    item.lastWornDate = DateTime.now();
-    _itemsNotifier.notifyListeners(); // Notify all listeners of the change
-    await Future.delayed(const Duration(milliseconds: 500));
-  }
-
-  /// Simulates saving edits to an item.
-  Future<void> saveItemEdits(ClothingItem item) async {
-    isEditing.value = false;
-    _itemsNotifier.notifyListeners(); 
-    await Future.delayed(const Duration(milliseconds: 700));
-  }
-
-  /// Simulates deleting an item.
-  Future<void> deleteItem(String itemId) async {
-    _mockItems.removeWhere((item) => item.id == itemId);
-    // Reassigning the list forces the ValueNotifier to trigger a full update
-    _itemsNotifier.value = List.from(_mockItems); 
-    await Future.delayed(const Duration(milliseconds: 700));
-  }
-  
-  void dispose() {
-    isEditing.dispose();
-    _itemsNotifier.dispose(); // CRITICAL: Must dispose the notifier
+  Future<void> deleteItem(String id) async {
+    try {
+      await _supabase.from('clothing_items').delete().eq('id', id);
+      _items.removeWhere((item) => item.id == id);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error deleting item: $e');
+    }
   }
 }
