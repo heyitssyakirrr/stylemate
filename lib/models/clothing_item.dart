@@ -1,82 +1,63 @@
-// lib/models/clothing_item.dart
-
+import 'dart:convert';
 
 class ClothingItem {
-  final String? id;
-  final String? userId; // For database linkage
-  String imageUrl; // <--- MODIFIED: Removed 'final'
-  
-  // AI-Tagged fields
-  String category;      // e.g., 'T-Shirt', 'Jeans'
-  String color;         // e.g., 'Blue', 'Red'
-  String pattern;       // e.g., 'Solid', 'Striped', 'Floral'
-  String season;        // e.g., 'Summer', 'Winter'
-  String usage;         // e.g., 'Casual', 'Formal'
-  
-  // User/App controlled fields
-  int wearCount;
-  DateTime? lastWornDate;
-  String? brand;
-  String? customNote;
+  final String id;
+  final String userId;
+  final String imageUrl;
+  final String subCategory;
+  final String articleType;
+  final String baseColour;
+  final String usage;
+  final String gender;
+  final DateTime createdAt;
+  // New field for embedding vector
+  final List<double> embedding;
 
   ClothingItem({
-    this.id,
-    this.userId,
+    required this.id,
+    required this.userId,
     required this.imageUrl,
-    this.category = 'Untagged',
-    this.color = 'Untagged',
-    this.pattern = 'Untagged',
-    this.season = 'Untagged',
-    this.usage = 'Untagged',
-    this.wearCount = 0,
-    this.lastWornDate,
-    this.brand,
-    this.customNote,
+    required this.subCategory,
+    required this.articleType,
+    required this.baseColour,
+    required this.usage,
+    required this.gender,
+    required this.createdAt,
+    required this.embedding,
   });
-  
-  // Helper to get all primary tags as a map for UI display
-  Map<String, String> get primaryTags => {
-    "Category": category,
-    "Color": color,
-    "Pattern": pattern,
-    "Season": season,
-    "Usage": usage,
-  };
 
-  // Factory method to create an instance from a database map (e.g., from Firestore)
-  factory ClothingItem.fromMap(Map<String, dynamic> data) {
+  factory ClothingItem.fromJson(Map<String, dynamic> json) {
     return ClothingItem(
-      id: data['id'],
-      userId: data['user_id'],
-      imageUrl: data['image_url'],
-      category: data['category'] ?? 'Untagged',
-      color: data['color'] ?? 'Untagged',
-      pattern: data['pattern'] ?? 'Untagged',
-      season: data['season'] ?? 'Untagged',
-      usage: data['usage'] ?? 'Untagged',
-      wearCount: data['wear_count'] ?? 0,
-      lastWornDate: data['last_worn_date'] != null
-          ? DateTime.parse(data['last_worn_date'])
-          : null,
-      brand: data['brand'],
-      customNote: data['custom_note'],
+      id: json['id'].toString(), // Handle int or string ID
+      userId: json['user_id'] ?? '',
+      imageUrl: json['image_url'] ?? '',
+      subCategory: json['sub_category'] ?? '',
+      articleType: json['article_type'] ?? '',
+      baseColour: json['base_colour'] ?? '',
+      usage: json['usage'] ?? '',
+      gender: json['gender'] ?? '',
+      createdAt: json['created_at'] != null 
+          ? DateTime.parse(json['created_at']) 
+          : DateTime.now(),
+      // Handle embedding conversion safely
+      embedding: json['embedding'] != null 
+          ? (json['embedding'] as List).map((e) => (e as num).toDouble()).toList() 
+          : [],
     );
   }
 
-  // Method to convert the instance to a map (for saving to the database)
-  Map<String, dynamic> toMap() {
+  Map<String, dynamic> toJson() {
     return {
       'user_id': userId,
       'image_url': imageUrl,
-      'category': category,
-      'color': color,
-      'pattern': pattern,
-      'season': season,
+      'sub_category': subCategory,
+      'article_type': articleType,
+      'base_colour': baseColour,
       'usage': usage,
-      'wear_count': wearCount,
-      'last_worn_date': lastWornDate?.toIso8601String(),
-      'brand': brand,
-      'custom_note': customNote,
+      'gender': gender,
+      'created_at': createdAt.toIso8601String(),
+      // Store embedding as is (Supabase handles JSON/vector arrays)
+      'embedding': embedding,
     };
   }
 }
