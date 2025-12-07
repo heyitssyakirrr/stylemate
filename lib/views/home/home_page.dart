@@ -24,6 +24,11 @@ class _HomeScreenState extends State<HomeScreen> {
   final WeatherController _weatherController = WeatherController(); // Initialize controller
   int selectedIndex = 0;
 
+  // Placeholder for the generated outfit.
+  // In a real app with Provider, this would update automatically when you generate an outfit.
+  // For now, it stays null to trigger the "Call to Action" state.
+  final Map<String, dynamic>? _todaysOutfit = null;
+
   @override
   void dispose() {
     _weatherController.dispose(); // Dispose controller to prevent memory leaks
@@ -77,10 +82,16 @@ class _HomeScreenState extends State<HomeScreen> {
               _buildQuickActionsGrid(),
               const SizedBox(height: 32),
               
-              // --- UPDATED WEATHER WIDGET CALL ---
+              // --- WEATHER WIDGET (Your existing code preserved) ---
               _buildWeatherCard(), 
               const SizedBox(height: 32),
 
+              Text("Today’s Featured Outfit",
+                  style: GoogleFonts.poppins(
+                    fontSize: 17, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 16),
+
+              // --- NEW: Dynamic Recommendation Card ---
               _buildDailyRecommendationCard(),
               const SizedBox(height: 40),
             ],
@@ -168,7 +179,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
 
-  // --- UPDATED WEATHER CARD IMPLEMENTATION ---
+  // --- WEATHER CARD (Unchanged logic) ---
   Widget _buildWeatherCard() {
     return ValueListenableBuilder<bool>(
       valueListenable: _weatherController.isLoading,
@@ -202,7 +213,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
         final Weather? weatherData = _weatherController.weather.value;
         if (weatherData == null) {
-          return const SizedBox.shrink(); // Hide if no data and no error
+          return const SizedBox.shrink(); 
         }
         
         final temp = weatherData.temperature.round();
@@ -233,27 +244,25 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: Colors.white.withOpacity(0.9),
                     )),
                   const SizedBox(height: 8),
-                  Text("$temp°C", // Dynamic temperature
+                  Text("$temp°C", 
                     style: GoogleFonts.poppins(
                       fontSize: 56, 
                       fontWeight: FontWeight.w300,
                       color: Colors.white,
                     )),
                   const SizedBox(height: 4),
-                  Text(description.split(' ').map((word) => word[0].toUpperCase() + word.substring(1)).join(' '), // Capitalize words
+                  Text(description.split(' ').map((word) => word[0].toUpperCase() + word.substring(1)).join(' '), 
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       color: Colors.white.withOpacity(0.8),
                     )),
                 ],
               ),
-              // Dynamic Icon - Fetched from Network
               Image.network(
                 iconUrl,
                 width: 80,
                 height: 80,
                 errorBuilder: (context, error, stackTrace) {
-                  // Fallback icon if network image fails
                   return const Icon(Icons.cloud_queue, size: 60, color: Colors.white);
                 },
               ),
@@ -264,59 +273,129 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
   
+  // --- NEW: Dynamic Recommendation Card ---
+  // Replaces the old static image/text with the "Call to Action" design
   Widget _buildDailyRecommendationCard() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text("Today’s Featured Outfit",
-            style: GoogleFonts.poppins(
-              fontSize: 18, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 16),
-        Container(
-          height: 250,
+    // STATE 1: No Outfit Generated Yet (Call To Action)
+    if (_todaysOutfit == null) {
+      return GestureDetector(
+        onTap: () => Navigator.pushNamed(context, Routes.outfit),
+        child: Container(
           width: double.infinity,
+          padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(AppConstants.kRadius),
-            boxShadow: [AppConstants.cardShadow],
+            gradient: LinearGradient(
+              colors: [AppConstants.primaryAccent, AppConstants.primaryAccent.withOpacity(0.8)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: const [
+              BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 4))
+            ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(AppConstants.kRadius)),
-                  child: Image.asset(
-                    'assets/logo.png',
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                  ),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  shape: BoxShape.circle,
                 ),
+                child: const Icon(Icons.auto_awesome, color: Colors.white, size: 32),
               ),
-              Padding(
-                padding: const EdgeInsets.all(AppConstants.kPadding),
+              const SizedBox(width: 20),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("AI Suggestion: Minimalist Casual",
+                    Text("Discover Your Look",
                       style: GoogleFonts.poppins(
-                        fontSize: 16, 
+                        fontSize: 18, 
                         fontWeight: FontWeight.w700,
-                        color: AppConstants.primaryAccent,
+                        color: Colors.white,
                       )),
-                    const SizedBox(height: 4),
-                    Text("Pair your Soft Blue T-Shirt with White Jeans for a fresh look.",
+                    const SizedBox(height: 6),
+                    Text("Tap to let AI style you based on your closet.",
                       style: GoogleFonts.poppins(
                         fontSize: 13, 
-                        color: Colors.black54,
-                      ), maxLines: 2, overflow: TextOverflow.ellipsis),
+                        color: Colors.white.withOpacity(0.9),
+                        height: 1.4,
+                      )),
                   ],
                 ),
               ),
+              const Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 18),
             ],
           ),
         ),
-      ],
+      );
+    }
+
+    // STATE 2: Outfit Generated (Featured Display)
+    // This layout is ready for when you connect the real data
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 12, offset: Offset(0, 4))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Image / Preview Section
+          Container(
+            height: 180,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: AppConstants.background,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                const Icon(Icons.checkroom, size: 64, color: Colors.black12),
+                Positioned(
+                  bottom: 12,
+                  right: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.verified, size: 14, color: Colors.green),
+                        const SizedBox(width: 4),
+                        Text("92% Match", style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Casual Summer Fit", // Placeholder
+                  style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text("Blue T-Shirt • Beige Chinos • White Sneakers", // Placeholder
+                  style: GoogleFonts.poppins(fontSize: 13, color: Colors.black54)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

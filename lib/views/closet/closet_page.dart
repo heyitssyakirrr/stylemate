@@ -1,5 +1,3 @@
-// lib/views/closet/closet_page.dart
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../utils/constants.dart';
@@ -19,21 +17,24 @@ class _ClosetPageState extends State<ClosetPage> {
   String _selectedFilter = 'All Items';
   String _searchQuery = '';
   
+  // Ensure these match valid 'articleType' or 'subCategory' in your DB
   final List<String> _filters = [
     'All Items',
-    'T-Shirt',
+    'Tshirts', // Example: Ensure this matches DB value exactly (e.g. 'Tshirts' vs 'T-Shirt')
     'Jeans',
-    'Jacket',
-    'Dress',
-    'Footwear',
-    'Accessories'
+    'Jackets',
+    'Dresses',
+    'Footwear', // Matches subCategory
+    'Accessories' // Matches subCategory
   ];
   
   @override
   void initState() {
     super.initState();
-    // Load initial items upon creation
-    _controller.filterItems(_searchQuery, _selectedFilter);
+    // Fetch data and then apply initial filter
+    _controller.fetchItems().then((_) {
+      _controller.filterItems(_searchQuery, _selectedFilter);
+    });
   }
   
   @override
@@ -130,14 +131,19 @@ class _ClosetPageState extends State<ClosetPage> {
 
           const SizedBox(height: 16),
 
-          // Item Grid View (Now uses ValueListenableBuilder)
+          // Item Grid View
+          // UPDATED: Using ListenableBuilder because ClosetController is a ChangeNotifier
           Expanded(
-            child: ValueListenableBuilder<List<ClothingItem>>(
-              valueListenable: _controller.itemsNotifier,
-              builder: (context, items, child) {
-                if (items.isEmpty) {
+            child: ListenableBuilder(
+              listenable: _controller,
+              builder: (context, child) {
+                if (_controller.isLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (_controller.items.isEmpty) {
                   return Center(
-                    child: Text('Your closet is empty. Upload an item first!',
+                    child: Text('No items found.',
                         style: GoogleFonts.poppins(color: Colors.black54)),
                   );
                 }
@@ -145,7 +151,7 @@ class _ClosetPageState extends State<ClosetPage> {
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: AppConstants.kPadding),
                   child: GridView.builder(
-                    itemCount: items.length,
+                    itemCount: _controller.items.length,
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 3,
                       crossAxisSpacing: 16,
@@ -153,7 +159,7 @@ class _ClosetPageState extends State<ClosetPage> {
                       childAspectRatio: 0.7,
                     ),
                     itemBuilder: (context, index) {
-                      final item = items[index];
+                      final item = _controller.items[index];
                       return _buildClosetItem(context, item);
                     },
                   ),
@@ -176,7 +182,10 @@ class _ClosetPageState extends State<ClosetPage> {
           MaterialPageRoute(
             builder: (_) => ItemDetailsPage(item: item),
           ),
-        );
+        ).then((_) {
+          // Refresh list when returning (in case item was deleted/edited)
+          _controller.fetchItems();
+        });
       },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -191,17 +200,22 @@ class _ClosetPageState extends State<ClosetPage> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.asset(
-                  item.imageUrl,
-                  fit: BoxFit.contain,
-                ),
+                child: item.imageUrl.isNotEmpty
+                    ? Image.network(
+                        item.imageUrl,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) => 
+                            const Icon(Icons.broken_image, color: Colors.grey),
+                      )
+                    : const Icon(Icons.image_not_supported, color: Colors.grey),
               ),
             ),
           ),
           const SizedBox(height: 8),
           // Item Label
           Text(
-            item.category,
+            // UPDATED: 'category' doesn't exist in model, using 'articleType'
+            item.subCategory, 
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
               fontSize: 13,

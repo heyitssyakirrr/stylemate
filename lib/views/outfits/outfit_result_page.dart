@@ -12,22 +12,25 @@ class OutfitResultPage extends StatelessWidget {
   
   const OutfitResultPage({super.key, required this.controller});
 
-  void _markAsWorn(BuildContext context, Outfit outfit) async {
-    await controller.markOutfitAsWorn(outfit);
+  void _markAsWorn(BuildContext context) async {
+    // Calls the updated method in OutfitController
+    await controller.markAsWorn();
     
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Outfit marked as worn! Analytics updated.')),
-    );
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Outfit marked as worn! Analytics updated.')),
+      );
+    }
   }
 
   void _regenerateOutfit(BuildContext context) {
-    // Navigates back to the OutfitPage (Form) where the user can regenerate.
     Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
-    final Outfit? outfit = controller.currentOutfit.value;
+    // Access directly (no longer a ValueNotifier)
+    final Outfit? outfit = controller.currentOutfit;
 
     if (outfit == null) {
       return Scaffold(
@@ -54,19 +57,20 @@ class OutfitResultPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // --- Recommendation Header ---
-            Text(outfit.title,
+            // 'title' and 'description' removed from Outfit model, using static/dynamic text
+            Text("AI Recommended Look",
                 style: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
-            Text(outfit.description,
+            Text("Here is a personalized combination based on your style and constraints.",
                 style: GoogleFonts.poppins(color: Colors.black54)),
             const SizedBox(height: 32),
 
-            // --- Outfit Display (Mockup) ---
+            // --- Outfit Display ---
             _buildOutfitDisplay(outfit.items),
             const SizedBox(height: 32),
 
             // --- Action Buttons ---
-            _buildActionButtons(context, outfit),
+            _buildActionButtons(context),
             const SizedBox(height: 32),
 
             // --- Why This Outfit? Section ---
@@ -92,7 +96,6 @@ class OutfitResultPage extends StatelessWidget {
           Text("Composed Items", style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600)),
           const Divider(height: 24),
           
-          // List of Items (Pills)
           Wrap(
             spacing: 12.0,
             runSpacing: 12.0,
@@ -101,7 +104,7 @@ class OutfitResultPage extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
-          // --- MOCK STYLED OUTFIT IMAGE (CENTERPIECE) ---
+          // --- MOCK STYLED OUTFIT IMAGE ---
           Container(
             height: 300,
             decoration: BoxDecoration(
@@ -120,14 +123,15 @@ class OutfitResultPage extends StatelessWidget {
 
   Widget _buildItemPill(ClothingItem item) {
     return Chip(
-      label: Text("${item.category} - ${item.color}"),
+      // Using 'articleType' and 'baseColour' from your new model
+      label: Text("${item.articleType} - ${item.baseColour}"),
       backgroundColor: AppConstants.primaryAccent.withOpacity(0.1),
       labelStyle: GoogleFonts.poppins(fontSize: 13, color: AppConstants.primaryAccent),
       avatar: Icon(Icons.checkroom_outlined, size: 18, color: AppConstants.primaryAccent),
     );
   }
 
-  Widget _buildActionButtons(BuildContext context, Outfit outfit) {
+  Widget _buildActionButtons(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -148,8 +152,8 @@ class OutfitResultPage extends StatelessWidget {
         Expanded(
           child: ElevatedButton.icon(
             icon: const Icon(Icons.check_circle_outline, color: Colors.white),
-            label: const Text("Mark as Worn", style: TextStyle(color: Colors.white)), // <--- FIX APPLIED
-            onPressed: () => _markAsWorn(context, outfit),
+            label: const Text("Mark as Worn", style: TextStyle(color: Colors.white)),
+            onPressed: () => _markAsWorn(context),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppConstants.primaryAccent,
               padding: const EdgeInsets.symmetric(vertical: 16),

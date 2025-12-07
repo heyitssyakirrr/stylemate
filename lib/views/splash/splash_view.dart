@@ -33,7 +33,7 @@ class SplashView extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.all(AppConstants.kPadding * 2), // More space around logo
                     child: Image.asset(
-                      'assets/logo.png',
+                      'assets/images/logo.png',
                       fit: BoxFit.contain,
                     ),
                   ),

@@ -54,11 +54,14 @@ class MLService {
     }
 
     // 2. Prepare Outputs
-    // We allocate buffers for all outputs. We identify them by size.
-    // 2048 -> Embedding. Others -> Classification heads.
+    // Get the list of output tensors once to avoid repeated calls
+    final outputTensors = _interpreter!.getOutputTensors();
     var outputBuffers = <int, Object>{};
-    for (int i = 0; i < _interpreter!.getOutputCount(); i++) {
-      int shapeSize = _interpreter!.getOutputTensor(i).shape.reduce((a, b) => a * b);
+    
+    // FIX: Using .length of the tensor list
+    for (int i = 0; i < outputTensors.length; i++) {
+      // FIX: Accessing tensor from the list instead of getOutputTensor(i)
+      int shapeSize = outputTensors[i].shape.reduce((a, b) => a * b);
       outputBuffers[i] = List.filled(1, List.filled(shapeSize, 0.0));
     }
 
@@ -69,7 +72,8 @@ class MLService {
     List<double> embedding = [];
     Map<String, String> tags = {};
 
-    for (int i = 0; i < _interpreter!.getOutputCount(); i++) {
+    // FIX: Using .length again for consistency
+    for (int i = 0; i < outputTensors.length; i++) {
       var rawOut = outputBuffers[i] as List;
       var data = (rawOut[0] as List).cast<double>();
 

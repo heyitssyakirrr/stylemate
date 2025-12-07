@@ -1,3 +1,5 @@
+// lib/controllers/outfit_controller.dart
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/outfit.dart';
@@ -12,42 +14,59 @@ class OutfitController extends ChangeNotifier {
     required String season,
     required String color,
     String? anchorItemId,
-    required List<String> slots, // ["Top", "Bottom", "Outerwear"]
+    required List<String> slots, // e.g. ["Top", "Bottom", "Outerwear"]
   }) async {
     try {
       isLoading = true; notifyListeners();
 
+      // Ensure user is logged in
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) throw Exception("User not logged in");
+
+      // Call the Supabase Edge Function (Python/TS backend)
       final res = await _supabase.functions.invoke(
         'outfit-recommender',
         body: {
-          'constraints': {'usage': [usage], 'season': [season], 'baseColour': [color]},
-          'anchor_id': anchorItemId,
-          'required_slots': slots,
-          'user_id': _supabase.auth.currentUser!.id,
+          'user_id': userId,
+          'constraints': {
+            'usage': [usage],        // e.g. "Casual"
+            'season': [season],      // e.g. "Summer"
+            'baseColour': [color]    // e.g. "Blue" (Maps to ColorPreference)
+          },
+          'anchor_id': anchorItemId, // Specific Item ID (e.g. the Blue Jeans)
+          'required_slots': slots,   // e.g. ["Top", "Bottom"]
         },
       );
 
       if (res.data != null) {
         currentOutfit = Outfit.fromJson(res.data);
+      } else {
+        // Handle case where function returns null (no valid outfit found)
+        currentOutfit = null;
       }
     } catch (e) {
       debugPrint("Recommendation Error: $e");
+      currentOutfit = null;
     } finally {
       isLoading = false; notifyListeners();
     }
   }
 
-  // New: Mark as Worn Logic
+  // Mark as Worn Logic
   Future<void> markAsWorn() async {
     if (currentOutfit == null) return;
+    
+    // We iterate through items and update them.
+    // In a real scenario, you might batch this or call a specific RPC function.
     for (var item in currentOutfit!.items) {
-      // Use RPC if you created one, or simpler update logic:
-      // Note: Incrementing safely usually requires an RPC or two calls. 
-      // Simplified here for clarity:
-      await _supabase.from('clothing_items').update({
-        'wear_count': item.wearCount + 1,
-        'last_worn_date': DateTime.now().toIso8601String(),
-      }).eq('id', item.id);
+      try {
+        await _supabase.from('clothing_items').update({
+          'wear_count': item.wearCount + 1,
+          'last_worn_date': DateTime.now().toIso8601String(),
+        }).eq('id', item.id);
+      } catch (e) {
+        debugPrint("Error marking item ${item.id} as worn: $e");
+      }
     }
   }
 }

@@ -72,7 +72,7 @@ class _RegisterPageState extends State<RegisterPage> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(20),
                 child: Image.asset(
-                  "assets/logo.png",
+                  "assets/images/logo.png",
                   width: 120,
                   height: 120,
                   fit: BoxFit.cover,
