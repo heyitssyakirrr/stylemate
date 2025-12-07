@@ -3,9 +3,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
+// Removed unused provider import
 import '../../utils/constants.dart';
 import '../../controllers/upload_controller.dart';
-import '../../models/clothing_item.dart';
 
 class UploadClothingPage extends StatefulWidget {
   const UploadClothingPage({super.key});
@@ -15,24 +15,12 @@ class UploadClothingPage extends StatefulWidget {
 }
 
 class _UploadClothingPageState extends State<UploadClothingPage> {
+  // Using the controller directly.
   final UploadController _controller = UploadController();
-  
-  final TextEditingController _brandController = TextEditingController();
-  final TextEditingController _noteController = TextEditingController();
 
-  @override
-  void initState() {
-    super.initState();
-    // Initialize text fields with current item data or empty string on load
-    _brandController.text = _controller.currentItem.brand ?? '';
-    _noteController.text = _controller.currentItem.customNote ?? '';
-  }
-  
   @override
   void dispose() {
     _controller.dispose();
-    _brandController.dispose();
-    _noteController.dispose();
     super.dispose();
   }
 
@@ -68,18 +56,16 @@ class _UploadClothingPageState extends State<UploadClothingPage> {
   }
 
   void _save() async {
-    if (await _controller.saveItem()) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Item successfully saved to your Closet!')),
-        );
-        // Clear text fields after successful save
-        _brandController.clear();
-        _noteController.clear();
-      }
+    // Controller handles the upload and navigation pop
+    await _controller.uploadItem(context);
+    
+    if (mounted && _controller.selectedImage != null) {
+       // Optional: Show success message if not handled in controller
+       ScaffoldMessenger.of(context).showSnackBar(
+         const SnackBar(content: Text('Item uploaded!')),
+       );
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -96,47 +82,27 @@ class _UploadClothingPageState extends State<UploadClothingPage> {
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.black87),
       ),
-      body: ValueListenableBuilder<bool>(
-        valueListenable: _controller.isProcessing,
-        builder: (context, isProcessing, child) {
+      // Use ListenableBuilder to rebuild when controller notifies changes
+      body: ListenableBuilder(
+        listenable: _controller,
+        builder: (context, child) {
           return SingleChildScrollView(
             padding: const EdgeInsets.all(AppConstants.kPadding * 1.5),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ValueListenableBuilder<String?>(
-                  valueListenable: _controller.errorMessage,
-                  builder: (context, errorMessage, child) {
-                    if (errorMessage != null) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 16.0),
-                        child: Text(errorMessage,
-                            style: GoogleFonts.poppins(color: Colors.red)),
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  },
-                ),
-                
-                _buildImageUploadCard(isProcessing),
+                _buildImageUploadCard(),
                 const SizedBox(height: 30),
                 
-                ValueListenableBuilder<ClothingItem>(
-                  valueListenable: _controller.itemNotifier,
-                  builder: (context, item, child) {
-                    return Column(
-                      children: [
-                        _buildAutoTaggingResults(item),
-                        const SizedBox(height: 30),
-                        _buildManualEditSection(item, isProcessing),
-                      ],
-                    );
-                  },
-                ),
-                
-                const SizedBox(height: 40),
-                _buildSaveButton(isProcessing),
-                const SizedBox(height: 40),
+                // Only show form if image is selected
+                if (_controller.selectedImage != null) ...[
+                  _buildAutoTaggingResults(),
+                  const SizedBox(height: 30),
+                  _buildManualEditSection(),
+                  const SizedBox(height: 40),
+                  _buildSaveButton(),
+                  const SizedBox(height: 40),
+                ],
               ],
             ),
           );
@@ -146,7 +112,7 @@ class _UploadClothingPageState extends State<UploadClothingPage> {
   }
 
   // Widget to handle image upload/preview
-  Widget _buildImageUploadCard(bool isProcessing) {
+  Widget _buildImageUploadCard() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(AppConstants.kPadding),
@@ -155,91 +121,85 @@ class _UploadClothingPageState extends State<UploadClothingPage> {
         borderRadius: BorderRadius.circular(AppConstants.kRadius),
         boxShadow: const [AppConstants.cardShadow],
       ),
-      child: ValueListenableBuilder<XFile?>(
-        valueListenable: _controller.selectedImage,
-        builder: (context, imageFile, child) {
-          final bool imageSelected = imageFile != null;
+      child: Column(
+        children: [
+          Text("1. Upload Image for AI Tagging",
+              style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 16),
           
-          return Column(
-            children: [
-              Text("1. Upload Image for AI Tagging",
-                  style: GoogleFonts.poppins(
-                      fontSize: 16, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 16),
-              // Image Preview Area
-              Container(
-                height: 200,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: AppConstants.background,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.black12, width: 1),
-                ),
-                child: imageSelected
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            // Placeholder for the uploaded image (replace with FileImage/NetworkImage in a real app)
-                            Image.asset(
-                              'assets/logo.png',
-                              fit: BoxFit.contain,
-                            ),
-                            if (isProcessing)
-                              Container(
-                                color: Colors.black45.withOpacity(0.8),
-                                child: Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const CircularProgressIndicator(color: Colors.white),
-                                      const SizedBox(height: 10),
-                                      Text("AI Tagging in Progress...", 
-                                          style: GoogleFonts.poppins(color: Colors.white)),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                          ],
+          // Image Preview Area
+          Container(
+            height: 200,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: AppConstants.background,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.black12, width: 1),
+            ),
+            child: _controller.selectedImage != null
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Image.file(
+                          _controller.selectedImage!,
+                          fit: BoxFit.contain,
                         ),
-                      )
-                    : Center(
-                        child: Text("No Image Selected",
-                            style: GoogleFonts.poppins(color: Colors.black45)),
-                      ),
-              ),
-              const SizedBox(height: 16),
-              // Image Picker Button
-              ElevatedButton.icon(
-                onPressed: isProcessing ? null : _showImageSourceDialog,
-                icon: Icon(Icons.add_a_photo_outlined, color: imageSelected ? Colors.white : Colors.black87),
-                label: Text(imageSelected ? "Change Image" : "Select from Gallery/Camera",
-                    style: TextStyle(color: imageSelected ? Colors.white : Colors.black87)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: imageSelected ? AppConstants.primaryAccent : AppConstants.background,
-                  side: imageSelected ? BorderSide.none : const BorderSide(color: Colors.black26),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                        if (_controller.isLoading)
+                          Container(
+                            color: Colors.black45.withOpacity(0.8),
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const CircularProgressIndicator(color: Colors.white),
+                                  const SizedBox(height: 10),
+                                  Text("AI Tagging in Progress...", 
+                                      style: GoogleFonts.poppins(color: Colors.white)),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  )
+                : Center(
+                    child: Text("No Image Selected",
+                        style: GoogleFonts.poppins(color: Colors.black45)),
                   ),
-                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-                ),
-              ),
-            ],
-          );
-        },
+          ),
+          const SizedBox(height: 16),
+          
+          // Image Picker Button
+          ElevatedButton.icon(
+            onPressed: _controller.isLoading ? null : _showImageSourceDialog,
+            icon: Icon(Icons.add_a_photo_outlined, 
+                color: _controller.selectedImage != null ? Colors.white : Colors.black87),
+            label: Text(
+                _controller.selectedImage != null ? "Change Image" : "Select from Gallery/Camera",
+                style: TextStyle(color: _controller.selectedImage != null ? Colors.white : Colors.black87)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _controller.selectedImage != null 
+                  ? AppConstants.primaryAccent 
+                  : AppConstants.background,
+              side: _controller.selectedImage != null ? BorderSide.none : const BorderSide(color: Colors.black26),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  // Widget to display AI-powered tags
-  Widget _buildAutoTaggingResults(ClothingItem item) {
+  // Widget to display AI-powered tags (Using the controllers directly)
+  Widget _buildAutoTaggingResults() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("2. AI Auto-Tagging Results",
-            style: GoogleFonts.poppins(
-                fontSize: 17, fontWeight: FontWeight.w600)),
+        Text("2. AI Prediction & Manual Edit",
+            style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w600)),
         const SizedBox(height: 12),
         Container(
           width: double.infinity,
@@ -251,94 +211,19 @@ class _UploadClothingPageState extends State<UploadClothingPage> {
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: item.primaryTags.entries
-                .map((entry) => _buildTagRow(entry.key, entry.value))
-                .toList(),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // Widget for displaying a single tag
-  Widget _buildTagRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: GoogleFonts.poppins(color: Colors.black54)),
-          Text(value, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-        ],
-      ),
-    );
-  }
-
-  // Widget for manual editing/refining tags
-  Widget _buildManualEditSection(ClothingItem item, bool isProcessing) {
-    
-    // Update controllers to reflect the current item state
-    if (_brandController.text != (item.brand ?? '')) {
-      _brandController.text = item.brand ?? '';
-    }
-    if (_noteController.text != (item.customNote ?? '')) {
-      _noteController.text = item.customNote ?? '';
-    }
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text("3. Manual Tag Refinement",
-            style: GoogleFonts.poppins(
-                fontSize: 17, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 12),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(AppConstants.kPadding),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(AppConstants.kRadius),
-            boxShadow: const [AppConstants.cardShadow],
-          ),
-          child: Column(
             children: [
-              // Category Dropdown
-              _buildDropdownField(
-                  "Category",
-                  item.category,
-                  ['T-Shirt', 'Pants', 'Jacket', 'Dress', 'Footwear'],
-                  isProcessing
-              ),
-              const SizedBox(height: 16),
-              // Season Dropdown
-              _buildDropdownField(
-                  "Season",
-                  item.season,
-                  ['Summer', 'Winter', 'Spring', 'Fall', 'All-Season'],
-                  isProcessing
-              ),
-              const SizedBox(height: 16),
-              // Brand Text Field
-              TextField(
-                controller: _brandController,
-                enabled: !isProcessing,
-                onChanged: (value) => _controller.updateTag("Brand", value),
-                decoration: const InputDecoration(
-                  labelText: "Brand (Optional)",
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Note Text Field
-              TextField(
-                controller: _noteController,
-                enabled: !isProcessing,
-                onChanged: (value) => _controller.updateTag("Custom Note", value),
-                decoration: const InputDecoration(
-                  labelText: "Custom Note (Optional)",
-                  border: OutlineInputBorder(),
-                ),
-              ),
+              // We map your specific fields here instead of a generic map
+              _buildTagField("Sub Category", _controller.subCategoryCtrl),
+              const SizedBox(height: 12),
+              _buildTagField("Article Type", _controller.articleTypeCtrl),
+              const SizedBox(height: 12),
+              _buildTagField("Base Colour", _controller.baseColourCtrl),
+              const SizedBox(height: 12),
+              _buildTagField("Usage", _controller.usageCtrl),
+              const SizedBox(height: 12),
+              _buildTagField("Season", _controller.seasonCtrl),
+              const SizedBox(height: 12),
+              _buildTagField("Gender", _controller.genderCtrl),
             ],
           ),
         ),
@@ -346,66 +231,49 @@ class _UploadClothingPageState extends State<UploadClothingPage> {
     );
   }
 
-  // Reusable dropdown widget
-  Widget _buildDropdownField(
-      String label,
-      String currentValue,
-      List<String> options,
-      bool isDisabled
-  ) {
-    return DropdownButtonFormField<String>(
+  // Helper for text fields
+  Widget _buildTagField(String label, TextEditingController controller) {
+    return TextField(
+      controller: controller,
       decoration: InputDecoration(
         labelText: label,
         border: const OutlineInputBorder(),
+        isDense: true,
       ),
-      value: options.contains(currentValue) ? currentValue : options.first,
-      items: options
-          .map((item) => DropdownMenuItem(value: item, child: Text(item)))
-          .toList(),
-      onChanged: isDisabled ? null : (newValue) {
-        if (newValue != null) {
-          _controller.updateTag(label, newValue);
-        }
-      },
-      disabledHint: Text(currentValue),
     );
   }
 
+  // Removed separate ManualEditSection since we merged editing into the AI results display
+  Widget _buildManualEditSection() {
+    return const SizedBox.shrink(); // Placeholder if you want to add extra fields later
+  }
 
   // Final save button
-  Widget _buildSaveButton(bool isProcessing) {
-    return ValueListenableBuilder<XFile?>(
-      valueListenable: _controller.selectedImage,
-      builder: (context, imageFile, child) {
-        final bool imageSelected = imageFile != null;
-        
-        return SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: imageSelected && !isProcessing ? _save : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppConstants.primaryAccent,
-              padding: const EdgeInsets.symmetric(vertical: 18),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppConstants.kRadius / 2),
-              ),
-            ),
-            child: isProcessing
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                        color: Colors.white, strokeWidth: 2))
-                : Text(
-                    "Save to Virtual Closet",
-                    style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white),
-                  ),
+  Widget _buildSaveButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: (_controller.selectedImage != null && !_controller.isLoading) ? _save : null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppConstants.primaryAccent,
+          padding: const EdgeInsets.symmetric(vertical: 18),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppConstants.kRadius / 2),
           ),
-        );
-      },
+        ),
+        child: _controller.isLoading
+            ? const SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+            : Text(
+                "Save to Virtual Closet",
+                style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white),
+              ),
+      ),
     );
   }
 }

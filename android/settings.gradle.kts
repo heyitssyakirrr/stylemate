@@ -19,7 +19,17 @@ pluginManagement {
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     id("com.android.application") version "8.7.0" apply false
-    id("org.jetbrains.kotlin.android") version "1.8.22" apply false
+    // FIX: Updated Kotlin to 1.9.24 to match AGP 8.7.0 requirement
+    id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+}
+
+// FIX: Added this block with PREFER_PROJECT to allow plugins to add their own repos
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
+    repositories {
+        google()
+        mavenCentral()
+    }
 }
 
 include(":app")

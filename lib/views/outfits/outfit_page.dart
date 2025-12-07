@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../utils/constants.dart';
 import '../../controllers/outfit_controller.dart';
+import '../../controllers/closet_controller.dart';
+import '../../models/clothing_item.dart';
 import 'outfit_result_page.dart';
 
 class OutfitPage extends StatefulWidget {
@@ -15,26 +17,100 @@ class OutfitPage extends StatefulWidget {
 
 class _OutfitPageState extends State<OutfitPage> {
   final OutfitController _controller = OutfitController();
-  
-  // Local state to hold form data
-  final Map<String, dynamic> _criteria = {
-    'Usage': null,
-    'Occasion': null,
-    'ColorPreference': null,
-    'StylePreference': null,
+  final ClosetController _closetController = ClosetController(); // Needed for Anchor Items
+
+  // Comprehensive options based on standard Fashion Datasets
+  final Map<String, List<String>> _options = {
+    'Usage': [
+      'Casual',
+      'Ethnic',
+      'Formal',
+      'Party',
+      'Smart Casual',
+      'Sports',
+      'Travel'
+    ],
+    'Season': [
+      'Fall',
+      'Spring',
+      'Summer',
+      'Winter',
+      'All Seasons' // Often useful to have a catch-all
+    ],
+    'ColorPreference': [
+      'Beige',
+      'Black',
+      'Blue',
+      'Brown',
+      'Burgundy',
+      'Charcoal',
+      'Cream',
+      'Gold',
+      'Green',
+      'Grey',
+      'Khaki',
+      'Lavender',
+      'Magenta',
+      'Maroon',
+      'Multi',
+      'Mustard',
+      'Navy Blue',
+      'Olive',
+      'Orange',
+      'Peach',
+      'Pink',
+      'Purple',
+      'Red',
+      'Silver',
+      'Tan',
+      'Teal',
+      'Turquoise',
+      'White',
+      'Yellow'
+    ],
   };
 
-  void _generateOutfit() async {
-    // 1. Generate outfit (updates controller state)
-    await _controller.generateOutfit(criteria: _criteria);
+  // Local state
+  final Map<String, String?> _criteria = {
+    'Usage': null,
+    'Season': null,
+    'ColorPreference': null,
+  };
 
-    // 2. Navigate to results page
-    if (mounted && _controller.currentOutfit.value != null) {
+  // Anchor Item State
+  bool _useAnchorItem = false;
+  ClothingItem? _selectedAnchorItem;
+
+  // Slot State
+  final List<String> _requiredSlots = ['Top', 'Bottom', 'Footwear'];
+
+  @override
+  void initState() {
+    super.initState();
+    _closetController.fetchItems(); // Ensure we have items for the anchor list
+  }
+
+  void _generateOutfit() async {
+    // 1. Generate
+    await _controller.generateOutfit(
+      usage: _criteria['Usage'] ?? 'Casual',
+      season: _criteria['Season'] ?? 'Summer',
+      color: _criteria['ColorPreference'] ?? 'Blue',
+      anchorItemId: _useAnchorItem ? _selectedAnchorItem?.id : null,
+      slots: _requiredSlots,
+    );
+
+    // 2. Navigate
+    if (mounted && _controller.currentOutfit != null) {
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => OutfitResultPage(controller: _controller),
         ),
+      );
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not generate outfit. Try different filters.')),
       );
     }
   }
@@ -42,6 +118,7 @@ class _OutfitPageState extends State<OutfitPage> {
   @override
   void dispose() {
     _controller.dispose();
+    _closetController.dispose();
     super.dispose();
   }
 
@@ -64,13 +141,23 @@ class _OutfitPageState extends State<OutfitPage> {
             Text("Define Your Look",
                 style: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
-            Text("Select filters below to tailor the recommendation. Leave blank for a random AI pick.",
+            Text("Set constraints to guide the AI recommendation.",
                 style: GoogleFonts.poppins(color: Colors.black54)),
             const SizedBox(height: 32),
 
+            // 1. Constraint Form
             _buildFormCard(),
+            const SizedBox(height: 32),
+
+            // 2. Slot Requirements
+            _buildSlotRequirements(),
+            const SizedBox(height: 32),
+
+            // 3. Anchor Item Selection
+            _buildAnchorSelection(),
             const SizedBox(height: 40),
 
+            // 4. Generate Action
             _buildGenerateButton(),
           ],
         ),
@@ -88,20 +175,11 @@ class _OutfitPageState extends State<OutfitPage> {
       ),
       child: Column(
         children: [
-          // Dropdown: Usage
-          _buildDropdownField('Usage', 'Usage', _controller.options['Usage']!),
+          _buildDropdownField('Usage', 'Usage / Occasion', _options['Usage']!),
           const SizedBox(height: 16),
-          
-          // Dropdown: Occasion
-          _buildDropdownField('Occasion', 'Occasion', _controller.options['Occasion']!),
+          _buildDropdownField('Season', 'Season', _options['Season']!),
           const SizedBox(height: 16),
-          
-          // Dropdown: Color Preference
-          _buildDropdownField('ColorPreference', 'Color Palette', _controller.options['ColorPreference']!),
-          const SizedBox(height: 16),
-
-          // Dropdown: Style Preference
-          _buildDropdownField('StylePreference', 'Style Preference', _controller.options['StylePreference']!),
+          _buildDropdownField('ColorPreference', 'Preferred Color', _options['ColorPreference']!),
         ],
       ),
     );
@@ -116,6 +194,7 @@ class _OutfitPageState extends State<OutfitPage> {
       ),
       value: _criteria[key],
       hint: Text("Select $label (Optional)"),
+      isExpanded: true, // Prevents overflow for long color names
       items: options
           .map((item) => DropdownMenuItem(value: item, child: Text(item)))
           .toList(),
@@ -127,14 +206,145 @@ class _OutfitPageState extends State<OutfitPage> {
     );
   }
 
+  Widget _buildSlotRequirements() {
+    List<String> allSlots = ['Top', 'Bottom', 'Outerwear', 'Footwear', 'Accessory'];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("Required Items:", style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          children: allSlots.map((slot) => FilterChip(
+            label: Text(slot),
+            selected: _requiredSlots.contains(slot),
+            onSelected: (selected) {
+              setState(() {
+                if (selected) {
+                  _requiredSlots.add(slot);
+                } else {
+                  _requiredSlots.remove(slot);
+                }
+              });
+            },
+            selectedColor: AppConstants.primaryAccent.withOpacity(0.8),
+            backgroundColor: Colors.white,
+            labelStyle: GoogleFonts.poppins(
+              color: _requiredSlots.contains(slot) ? Colors.white : Colors.black87,
+              fontSize: 13,
+            ),
+          )).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAnchorSelection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text("Start with an Anchor Item?", style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+            Switch(
+              value: _useAnchorItem, 
+              onChanged: (val) {
+                setState(() {
+                  _useAnchorItem = val;
+                  if (!val) _selectedAnchorItem = null;
+                });
+              },
+              activeColor: AppConstants.primaryAccent,
+            )
+          ],
+        ),
+        if (_useAnchorItem)
+          ListenableBuilder(
+            listenable: _closetController, // Listen to closet loading/changes
+            builder: (context, child) {
+              if (_closetController.isLoading) {
+                return const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              
+              if (_closetController.items.isEmpty) {
+                return const Text("No items in closet to select.");
+              }
+
+              return SizedBox(
+                height: 130,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _closetController.items.length,
+                  itemBuilder: (context, index) {
+                    final item = _closetController.items[index];
+                    final isSelected = _selectedAnchorItem?.id == item.id;
+                    
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() => _selectedAnchorItem = isSelected ? null : item);
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 12.0, bottom: 8.0, top: 8.0),
+                        child: Container(
+                          width: 90,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected ? AppConstants.primaryAccent : Colors.transparent, 
+                              width: 3
+                            ),
+                            boxShadow: [AppConstants.cardShadow],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(
+                                child: ClipRRect(
+                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(9)),
+                                  child: item.imageUrl.isNotEmpty
+                                    ? Image.network(item.imageUrl, fit: BoxFit.cover)
+                                    : const Icon(Icons.image),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(4.0),
+                                child: Text(
+                                  item.subCategory, // Display subCategory (e.g. Jeans)
+                                  style: GoogleFonts.poppins(fontSize: 10),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+          )
+      ],
+    );
+  }
+
   Widget _buildGenerateButton() {
+    bool canGenerate = !_useAnchorItem || (_useAnchorItem && _selectedAnchorItem != null);
+
     return SizedBox(
       width: double.infinity,
-      child: ValueListenableBuilder<bool>(
-        valueListenable: _controller.isLoading,
-        builder: (context, isLoading, child) {
+      child: ListenableBuilder(
+        listenable: _controller,
+        builder: (context, child) {
           return ElevatedButton(
-            onPressed: isLoading ? null : _generateOutfit,
+            onPressed: (_controller.isLoading || !canGenerate) ? null : _generateOutfit,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppConstants.primaryAccent,
               padding: const EdgeInsets.symmetric(vertical: 18),
@@ -142,7 +352,7 @@ class _OutfitPageState extends State<OutfitPage> {
                 borderRadius: BorderRadius.circular(14),
               ),
             ),
-            child: isLoading
+            child: _controller.isLoading
                 ? const SizedBox(
                     height: 20,
                     width: 20,

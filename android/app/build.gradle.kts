@@ -8,9 +8,7 @@ plugins {
 android {
     namespace = "com.example.stylemate"
     compileSdk = flutter.compileSdkVersion
-    // Set explicit NDK version to match plugin requirements and avoid mismatches.
-    // Using the highest required side-by-side NDK version (replace if you change plugins):
-    ndkVersion = "27.0.12077973"
+    //ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -18,24 +16,45 @@ android {
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
+        jvmTarget = "11"
+    }
+
+    sourceSets {
+        getByName("main").java.srcDirs("src/main/kotlin")
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.stylemate"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = 21 // Ensure this is 21
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        ndk {
+            // Explicitly include all architectures to prevent "Missing Library" crash
+            abiFilters.add("armeabi-v7a")
+            abiFilters.add("arm64-v8a")
+            abiFilters.add("x86_64")
+        }
     }
 
+    // --- PASTE THIS BLOCK HERE ---
+    aaptOptions {
+        noCompress += listOf("tflite")
+    }
+    // -----------------------------
+
     buildTypes {
-        release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+        getByName("release") {
+            // CORRECTION 2: Kotlin syntax uses '=' and 'is' prefix
+            isMinifyEnabled = false
+            isShrinkResources = false
+            
+            // CORRECTION 3: Correct way to access signing configs in Kotlin
+            signingConfig = signingConfigs.getByName("debug") 
+        }
+        
+        getByName("debug") {
             signingConfig = signingConfigs.getByName("debug")
         }
     }

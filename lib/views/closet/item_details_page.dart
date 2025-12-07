@@ -5,7 +5,6 @@ import 'package:provider/provider.dart'; // Ensure provider is imported
 import '../../utils/constants.dart';
 import '../../models/clothing_item.dart';
 import '../../controllers/closet_controller.dart';
-import 'package:provider/provider.dart';
 
 class ItemDetailsPage extends StatefulWidget {
   final ClothingItem item;
@@ -16,76 +15,18 @@ class ItemDetailsPage extends StatefulWidget {
 }
 
 class _ItemDetailsPageState extends State<ItemDetailsPage> {
-  final ClosetController _controller = ClosetController();
-  late ClothingItem _editableItem; // Local state copy for editing
-
-  @override
-  void initState() {
-    super.initState();
-    // Create a copy of the item for local, client-side edits
-    _editableItem = ClothingItem.fromMap(widget.item.toMap());
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _markAsWorn() async {
-    await _controller.markAsWorn(_editableItem);
-    setState(() {}); // Refresh UI after update
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${_editableItem.category} marked as worn!')),
-      );
-    }
-  }
-
-  void _saveEdits() async {
-    await _controller.saveItemEdits(_editableItem);
-    setState(() {
-      _controller.isEditing.value = false;
-    });
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Item successfully updated.')),
-      );
-    }
-  }
-
-  void _confirmDelete() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Delete Item"),
-        content: Text("Are you sure you want to permanently delete your ${_editableItem.category}?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context); // Close dialog
-              // Pass ID to controller for deletion, which will update the list
-              await _controller.deleteItem(_editableItem.id!); 
-              if (mounted) {
-                // Return to the previous screen (the ClosetPage) after deletion
-                Navigator.pop(context); 
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Item successfully deleted.')),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text("Delete", style: TextStyle(color: Colors.white)),
-          )
-        ],
-      ),
-    );
-  }
-
+  // Use context.read/watch for controller in build, or keep local reference if needed for specific logic
+  // Typically better to get controller from context if it's provided higher up
+  // Assuming ClosetController is provided at a higher level (e.g. in main or ClosetPage)
+  
+  // Local editable item is tricky if we want to save back to DB.
+  // For now, let's assume we are just viewing. 
+  // If editing is required, we need a way to update the item in the controller.
+  
+  // Since the previous code had local editing state, we'll keep a simplified version
+  // that just displays data for now, or we can re-implement editing if your 
+  // ClosetController supports updating specific fields.
+  
   @override
   Widget build(BuildContext context) {
     // If you want to allow deleting, access controller here
@@ -94,26 +35,16 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
     return Scaffold(
       backgroundColor: AppConstants.background,
       appBar: AppBar(
-        title: Text(_editableItem.category,
+        title: Text(widget.item.articleType, // Use articleType as title
             style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
         backgroundColor: AppConstants.background,
         elevation: 0,
-        // Removed Actions: Edit button removed as we simplify flow
         actions: [
-          ValueListenableBuilder<bool>(
-            valueListenable: _controller.isEditing,
-            builder: (context, isEditing, child) {
-              if (isEditing) {
-                return IconButton(
-                  icon: const Icon(Icons.save_rounded, color: Colors.green),
-                  onPressed: _saveEdits,
-                );
-              }
-              return IconButton(
-                icon: const Icon(Icons.edit_outlined),
-                onPressed: () => _controller.isEditing.value = true,
-              );
-            },
+          // Removed Edit button for now as logic for updating specific fields needs 
+          // to be defined in controller. Can add back if needed.
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.red),
+            onPressed: () => _confirmDelete(context, closetController),
           ),
         ],
       ),
@@ -175,16 +106,22 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppConstants.kRadius),
-        child: Image.asset(
-          _editableItem.imageUrl, 
+        child: Image.network( // Changed to NetworkImage for Supabase URLs
+          widget.item.imageUrl,
           fit: BoxFit.contain,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return const Center(child: CircularProgressIndicator());
+          },
+          errorBuilder: (context, error, stackTrace) => 
+              const Center(child: Icon(Icons.broken_image, size: 50, color: Colors.grey)),
         ),
       ),
     );
   }
 
   Widget _buildWearStatsCard() {
-    final lastWorn = _editableItem.lastWornDate;
+    final lastWorn = widget.item.lastWornDate;
     final lastWornText = lastWorn != null
         ? DateFormat('MMM dd, yyyy').format(lastWorn.toLocal())
         : 'Never worn';
@@ -201,7 +138,7 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _buildStatColumn(
-              'Wear Count', _editableItem.wearCount.toString(), Icons.checkroom),
+              'Wear Count', widget.item.wearCount.toString(), Icons.checkroom),
           _buildStatColumn('Last Worn', lastWornText, Icons.calendar_month),
         ],
       ),
@@ -224,38 +161,32 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
     );
   }
 
-  // Updated to show the 6 new fields
   Widget _buildTagsSection() {
-    return ValueListenableBuilder<bool>(
-      valueListenable: _controller.isEditing,
-      builder: (context, isEditing, child) {
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(AppConstants.kPadding),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(AppConstants.kRadius),
-            boxShadow: const [AppConstants.cardShadow],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Item Tags & Info',
-                  style: GoogleFonts.poppins(
-                      fontSize: 17, fontWeight: FontWeight.w600)),
-              const Divider(height: 24),
-              // Dynamic fields: Tags
-              ..._editableItem.primaryTags.entries.map((entry) {
-                return _buildTagRow(entry.key, entry.value, isEditing);
-              }),
-              // Static fields: Brand/Notes
-              _buildInfoRow('Brand', _editableItem.brand ?? 'N/A', isEditing),
-              _buildInfoRow(
-                  'Notes', _editableItem.customNote ?? 'N/A', isEditing),
-            ],
-          ),
-        );
-      },
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppConstants.kPadding),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppConstants.kRadius),
+        boxShadow: const [AppConstants.cardShadow],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Classification Tags',
+              style: GoogleFonts.poppins(
+                  fontSize: 17, fontWeight: FontWeight.w600)),
+          const Divider(height: 24),
+          
+          // Display the 6 specific AI-classified tags
+          _buildTagRow('Sub Category', widget.item.subCategory),
+          _buildTagRow('Article Type', widget.item.articleType),
+          _buildTagRow('Base Colour', widget.item.baseColour),
+          _buildTagRow('Usage', widget.item.usage),
+          _buildTagRow('Gender', widget.item.gender),
+          _buildTagRow('Season', widget.item.season),
+        ],
+      ),
     );
   }
 
@@ -269,118 +200,6 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
           Text(value, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
         ],
       ),
-    );
-  }
-  
-  Widget _buildEditableDropdown(String label, String currentValue) {
-    List<String> options;
-    Function(String) onUpdate;
-
-    switch (label) {
-      case 'Category':
-        options = ['T-Shirt', 'Pants', 'Jacket', 'Dress', 'Footwear', 'Accessory'];
-        onUpdate = (v) => _editableItem.category = v;
-        break;
-      case 'Color':
-        options = ['Soft Blue', 'White', 'Black', 'Red', 'Gray'];
-        onUpdate = (v) => _editableItem.color = v;
-        break;
-      case 'Season':
-        options = ['Summer', 'Winter', 'Spring', 'Fall', 'All-Season'];
-        onUpdate = (v) => _editableItem.season = v;
-        break;
-      case 'Usage':
-        options = ['Active Wear', 'Casual', 'Formal', 'Business Casual'];
-        onUpdate = (v) => _editableItem.usage = v;
-        break;
-      default:
-        options = [currentValue];
-        onUpdate = (v) {};
-    }
-    
-    String? selectedValue = options.contains(currentValue) ? currentValue : options.first;
-
-    return DropdownButtonFormField<String>(
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-      ),
-      value: selectedValue,
-      items: options.map((item) => DropdownMenuItem(value: item, child: Text(item))).toList(),
-      onChanged: (newValue) {
-        if (newValue != null) {
-          onUpdate(newValue);
-          setState(() {}); 
-        }
-      },
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value, bool isEditing) {
-    if (isEditing) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 12.0),
-        child: TextField(
-          controller: TextEditingController(text: value == 'N/A' ? '' : value),
-          decoration: InputDecoration(
-            labelText: label,
-            border: const OutlineInputBorder(),
-          ),
-          onChanged: (newValue) {
-            if (label == 'Brand') {
-              _editableItem.brand = newValue;
-            } else if (label == 'Notes') {
-              _editableItem.customNote = newValue;
-            }
-          },
-        ),
-      );
-    }
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: GoogleFonts.poppins(color: Colors.black54)),
-          Flexible(
-            child: Text(value,
-                textAlign: TextAlign.right,
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w500)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButtons() {
-    return Row(
-      children: [
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: _markAsWorn,
-            icon: const Icon(Icons.check_circle_outline, color: Colors.white),
-            label: Text("Mark as Worn",
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: Colors.white)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppConstants.primaryAccent,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.red.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: IconButton(
-            icon: const Icon(Icons.delete_outline, color: Colors.red),
-            onPressed: _confirmDelete,
-          ),
-        ),
-      ],
     );
   }
 }

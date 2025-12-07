@@ -1,3 +1,15 @@
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        // Your existing dependencies
+        classpath("com.android.tools.build:gradle:8.1.2")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.10")
+    }
+}
+
 allprojects {
     repositories {
         google()
@@ -5,17 +17,21 @@ allprojects {
     }
 }
 
-val newBuildDir: Directory = rootProject.layout.buildDirectory.dir("../../build").get()
-rootProject.layout.buildDirectory.value(newBuildDir)
+// --- THIS IS THE MISSING PART (Written in Kotlin) ---
+
+// 1. Tell Gradle to build files into the project's root 'build' folder
+rootProject.buildDir = file("../build")
 
 subprojects {
-    val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
-    project.layout.buildDirectory.value(newSubprojectBuildDir)
+    // 2. Ensure submodules also follow this path
+    project.buildDir = file("${rootProject.buildDir}/${project.name}")
 }
+
 subprojects {
     project.evaluationDependsOn(":app")
 }
 
+// 3. Register the clean task
 tasks.register<Delete>("clean") {
-    delete(rootProject.layout.buildDirectory)
+    delete(rootProject.buildDir)
 }

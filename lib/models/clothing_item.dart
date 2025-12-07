@@ -1,20 +1,22 @@
 class ClothingItem {
-  final String? id;
-  final String? userId; // For database linkage
-  String imageUrl; // <--- MODIFIED: Removed 'final'
+  final String id;
+  final String userId;
+  final String imageUrl;
   
-  // AI-Tagged fields
-  String category;      // e.g., 'T-Shirt', 'Jeans'
-  String color;         // e.g., 'Blue', 'Red'
-  String pattern;       // e.g., 'Solid', 'Striped', 'Floral'
-  String season;        // e.g., 'Summer', 'Winter'
-  String usage;         // e.g., 'Casual', 'Formal'
-  
-  // User/App controlled fields
-  int wearCount;
-  DateTime? lastWornDate;
-  String? brand;
-  String? customNote;
+  // Classification Tags
+  final String subCategory;
+  final String articleType;
+  final String baseColour;
+  final String usage;
+  final String gender;
+  final String season;
+
+  // Analytics
+  final int wearCount;
+  final DateTime? lastWornDate;
+
+  // AI Embedding
+  final List<double> embedding;
 
   ClothingItem({
     required this.id,
@@ -28,33 +30,43 @@ class ClothingItem {
     required this.season,
     this.wearCount = 0,
     this.lastWornDate,
-    this.brand,
-    this.customNote,
+    required this.embedding,
   });
-  
-  // Helper to get all primary tags as a map for UI display
-  Map<String, String> get primaryTags => {
-    "Category": category,
-    "Color": color,
-    "Pattern": pattern,
-    "Season": season,
-    "Usage": usage,
-  };
 
-  // Factory method to create an instance from a database map (e.g., from Firestore)
-  factory ClothingItem.fromMap(Map<String, dynamic> data) {
+  factory ClothingItem.fromJson(Map<String, dynamic> json) {
+    // Safe embedding parsing
+    List<double> parsedEmbedding = [];
+    if (json['embedding'] != null) {
+      if (json['embedding'] is String) {
+        // Handle string vector format "[0.1, 0.2...]"
+        final String raw = json['embedding'];
+        parsedEmbedding = raw
+            .replaceAll('[', '')
+            .replaceAll(']', '')
+            .split(',')
+            .map((e) => double.tryParse(e.trim()) ?? 0.0)
+            .toList();
+      } else if (json['embedding'] is List) {
+        // Handle standard JSON array
+        parsedEmbedding = (json['embedding'] as List)
+            .map((e) => (e as num).toDouble())
+            .toList();
+      }
+    }
+
     return ClothingItem(
-      id: data['id'],
-      userId: data['user_id'],
-      imageUrl: data['image_url'],
-      category: data['category'] ?? 'Untagged',
-      color: data['color'] ?? 'Untagged',
-      pattern: data['pattern'] ?? 'Untagged',
-      season: data['season'] ?? 'Untagged',
-      usage: data['usage'] ?? 'Untagged',
-      wearCount: data['wear_count'] ?? 0,
-      lastWornDate: data['last_worn_date'] != null
-          ? DateTime.parse(data['last_worn_date'])
+      id: json['id'].toString(),
+      userId: json['user_id'] ?? '',
+      imageUrl: json['image_url'] ?? '',
+      subCategory: json['sub_category'] ?? '',
+      articleType: json['article_type'] ?? '',
+      baseColour: json['base_colour'] ?? '',
+      usage: json['usage'] ?? '',
+      gender: json['gender'] ?? '',
+      season: json['season'] ?? '',
+      wearCount: json['wear_count'] ?? 0,
+      lastWornDate: json['last_worn_date'] != null 
+          ? DateTime.parse(json['last_worn_date']) 
           : null,
       embedding: parsedEmbedding,
     );
@@ -72,12 +84,7 @@ class ClothingItem {
       'season': season,
       'wear_count': wearCount,
       'last_worn_date': lastWornDate?.toIso8601String(),
-      'brand': brand,
-      'custom_note': customNote,
+      'embedding': embedding, 
     };
   }
-
-  // Helper for UI cloning
-  Map<String, dynamic> toMap() => toJson();
-  factory ClothingItem.fromMap(Map<String, dynamic> map) => ClothingItem.fromJson(map);
 }

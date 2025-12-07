@@ -1,10 +1,9 @@
 {
-  "[typescript]": {
-    "editor.defaultFormatter": "denoland.vscode-deno"
-  },
+  "deno.enable": true,
   "deno.enablePaths": [
     "supabase/functions"
   ],
+  "deno.path": "C:\\Users\\syaki\\.deno\\bin\\deno.exe",
   "deno.lint": true,
   "deno.unstable": [
     "bare-node-builtins",
@@ -21,5 +20,8 @@
     "http",
     "net"
   ],
+  "[typescript]": {
+    "editor.defaultFormatter": "denoland.vscode-deno"
+  },
   "java.configuration.updateBuildConfiguration": "automatic"
 }
