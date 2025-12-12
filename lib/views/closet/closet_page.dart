@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+// Make sure you have this if using Provider, or just keep local state if not
 import '../../utils/constants.dart';
 import '../../models/clothing_item.dart';
 import '../../controllers/closet_controller.dart';
@@ -17,15 +18,21 @@ class _ClosetPageState extends State<ClosetPage> {
   String _selectedFilter = 'All Items';
   String _searchQuery = '';
   
-  // Ensure these match valid 'articleType' or 'subCategory' in your DB
+  // UPDATED: Filters matching your SubCategory options
   final List<String> _filters = [
     'All Items',
-    'Tshirts', // Example: Ensure this matches DB value exactly (e.g. 'Tshirts' vs 'T-Shirt')
-    'Jeans',
-    'Jackets',
-    'Dresses',
-    'Footwear', // Matches subCategory
-    'Accessories' // Matches subCategory
+    'Topwear',
+    'Bottomwear',
+    'Shoes',
+    'Bags',
+    'Jewellery',
+    'Accessories',
+    'Dress',
+    'Innerwear',
+    'Headwear',
+    'Eyewear',
+    'Watches',
+    'Wallets'
   ];
   
   @override
@@ -71,6 +78,14 @@ class _ClosetPageState extends State<ClosetPage> {
         elevation: 0,
         backgroundColor: AppConstants.background,
         iconTheme: const IconThemeData(color: Colors.black87),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              _controller.fetchItems();
+            },
+          )
+        ],
       ),
       body: Column(
         children: [
@@ -132,7 +147,6 @@ class _ClosetPageState extends State<ClosetPage> {
           const SizedBox(height: 16),
 
           // Item Grid View
-          // UPDATED: Using ListenableBuilder because ClosetController is a ChangeNotifier
           Expanded(
             child: ListenableBuilder(
               listenable: _controller,
@@ -143,7 +157,7 @@ class _ClosetPageState extends State<ClosetPage> {
 
                 if (_controller.items.isEmpty) {
                   return Center(
-                    child: Text('No items found.',
+                    child: Text('Your closet is empty.',
                         style: GoogleFonts.poppins(color: Colors.black54)),
                   );
                 }
@@ -172,25 +186,21 @@ class _ClosetPageState extends State<ClosetPage> {
     );
   }
 
-  // Widget for a single clothing item in the grid
   Widget _buildClosetItem(BuildContext context, ClothingItem item) {
     return GestureDetector(
       onTap: () {
-        // Navigate to the Item Details Page
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => ItemDetailsPage(item: item),
           ),
         ).then((_) {
-          // Refresh list when returning (in case item was deleted/edited)
           _controller.fetchItems();
         });
       },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Item Thumbnail/Image
           Expanded(
             child: Container(
               decoration: BoxDecoration(
@@ -200,37 +210,34 @@ class _ClosetPageState extends State<ClosetPage> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: item.imageUrl.isNotEmpty
-                    ? Image.network(
-                        item.imageUrl,
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) => 
-                            const Icon(Icons.broken_image, color: Colors.grey),
-                      )
-                    : const Icon(Icons.image_not_supported, color: Colors.grey),
+                child: Image.network(
+                  item.imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => 
+                      const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+                ),
               ),
             ),
           ),
           const SizedBox(height: 8),
-          // Item Label
           Text(
-            // UPDATED: 'category' doesn't exist in model, using 'articleType'
+            // Use subCategory for display as requested
             item.subCategory, 
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
               color: Colors.black87,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          // Item Sub-label
+          // Kept Wear Count display
           Text(
             'Worn ${item.wearCount} times',
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
-              fontSize: 11,
+              fontSize: 10,
               color: Colors.black54,
             ),
             maxLines: 1,

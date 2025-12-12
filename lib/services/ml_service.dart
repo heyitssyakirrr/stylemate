@@ -6,22 +6,27 @@ import 'package:image/image.dart' as img;
 
 class MLService {
   Interpreter? _interpreter;
-  late Map<String, List<String>> _labelMaps;
-  static const int INPUT_SIZE = 299; // ResNet50 standard input
+  
+  // Public for Dropdowns to access
+  late Map<String, List<String>> labelMaps = {};
+  
+  static const int INPUT_SIZE = 299; 
   
   Future<void> loadModel() async {
     try {
+      // Ensure this filename matches what you uploaded to assets!
       _interpreter = await Interpreter.fromAsset('assets/ml_data/classifier_extractor.tflite');
+      
       final labelJson = await rootBundle.loadString('assets/ml_data/label_maps.json');
       final decoded = json.decode(labelJson) as Map<String, dynamic>;
-      _labelMaps = decoded.map((key, value) => MapEntry(key, (value as List).cast<String>()));
+      
+      labelMaps = decoded.map((key, value) => MapEntry(key, (value as List).cast<String>()));
       print("✅ ML Model Loaded");
     } catch (e) {
       print("❌ Error loading model: $e");
     }
   }
 
-  // Helper: Find index of maximum value
   int argmax(List<double> list) {
     if (list.isEmpty) return -1;
     double maxVal = list[0];
@@ -42,7 +47,7 @@ class MLService {
     final rawImage = img.decodeImage(imageFile.readAsBytesSync())!;
     final resized = img.copyResize(rawImage, width: INPUT_SIZE, height: INPUT_SIZE);
     
-    // Normalize [0, 255] -> [0.0, 1.0] and shape to [1, 299, 299, 3]
+    // Normalize [0, 255] -> [0.0, 1.0] 
     var input = List.generate(1, (i) => List.generate(INPUT_SIZE, (y) => List.generate(INPUT_SIZE, (x) => List.filled(3, 0.0))));
     for (var y = 0; y < INPUT_SIZE; y++) {
       for (var x = 0; x < INPUT_SIZE; x++) {
@@ -54,13 +59,10 @@ class MLService {
     }
 
     // 2. Prepare Outputs
-    // Get the list of output tensors once to avoid repeated calls
     final outputTensors = _interpreter!.getOutputTensors();
     var outputBuffers = <int, Object>{};
     
-    // FIX: Using .length of the tensor list
     for (int i = 0; i < outputTensors.length; i++) {
-      // FIX: Accessing tensor from the list instead of getOutputTensor(i)
       int shapeSize = outputTensors[i].shape.reduce((a, b) => a * b);
       outputBuffers[i] = List.filled(1, List.filled(shapeSize, 0.0));
     }
@@ -68,20 +70,21 @@ class MLService {
     // 3. Run Inference
     _interpreter!.runForMultipleInputs([input], outputBuffers);
 
-    // 4. Parse Results
+    // 4. Parse Results (Tags + Real Embedding)
     List<double> embedding = [];
     Map<String, String> tags = {};
 
-    // FIX: Using .length again for consistency
     for (int i = 0; i < outputTensors.length; i++) {
       var rawOut = outputBuffers[i] as List;
       var data = (rawOut[0] as List).cast<double>();
 
-      if (data.length == 2048) {
+      // Check for the Embedding Layer (Size 2048)
+      if (data.length == 2048) { 
         embedding = data;
+        print("✅ Found Real Embedding Vector!");
       } else {
-        // Try to match with label maps based on size
-        _labelMaps.forEach((key, labels) {
+        // It's a classification tag
+        labelMaps.forEach((key, labels) {
           if (labels.length == data.length) {
             tags[key] = labels[argmax(data)];
           }

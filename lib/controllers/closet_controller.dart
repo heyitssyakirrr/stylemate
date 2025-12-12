@@ -46,25 +46,20 @@ class ClosetController extends ChangeNotifier {
     }
   }
 
-  // Missing method fixed here
+  // UPDATED: Filtering logic now uses SubCategory
   void filterItems(String query, String filterCategory) {
     _filteredItems = _allItems.where((item) {
-      // 1. Check Search Query (matches article type or base color)
+      // 1. Check Search Query (matches subCategory, article type or base color)
       final matchesQuery = query.isEmpty ||
+          item.subCategory.toLowerCase().contains(query.toLowerCase()) ||
           item.articleType.toLowerCase().contains(query.toLowerCase()) ||
           item.baseColour.toLowerCase().contains(query.toLowerCase());
 
-      // 2. Check Category Filter
-      // We map the UI filter chips to the database fields (articleType or subCategory)
+      // 2. Check Category Filter (Based on SubCategory now)
       bool matchesFilter = true;
       if (filterCategory != 'All Items') {
-        if (filterCategory == 'Footwear' || filterCategory == 'Accessories') {
-          // Check subCategory for broader groups
-          matchesFilter = item.subCategory == filterCategory; 
-        } else {
-          // Check articleType for specific items (T-Shirt, Jeans, etc.)
-          matchesFilter = item.articleType == filterCategory;
-        }
+        // Compare with subCategory (case-insensitive for safety)
+        matchesFilter = item.subCategory.toLowerCase() == filterCategory.toLowerCase();
       }
 
       return matchesQuery && matchesFilter;
