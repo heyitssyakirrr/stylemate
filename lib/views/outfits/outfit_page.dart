@@ -81,7 +81,7 @@ class _OutfitPageState extends State<OutfitPage> {
   bool _useAnchorItem = false;
   ClothingItem? _selectedAnchorItem;
 
-  // Slot State
+  // Slot State (Top and Bottom are mandatory)
   final List<String> _requiredSlots = ['Top', 'Bottom', 'Footwear'];
 
   @override
@@ -92,10 +92,11 @@ class _OutfitPageState extends State<OutfitPage> {
 
   void _generateOutfit() async {
     // 1. Generate
+    // ✅ FIX: Removed strict defaults. Passes null if not selected.
     await _controller.generateOutfit(
-      usage: _criteria['Usage'] ?? 'Casual',
-      season: _criteria['Season'] ?? 'Summer',
-      color: _criteria['ColorPreference'] ?? 'Blue',
+      usage: _criteria['Usage'], 
+      season: _criteria['Season'],
+      color: _criteria['ColorPreference'],
       anchorItemId: _useAnchorItem ? _selectedAnchorItem?.id : null,
       slots: _requiredSlots,
     );
@@ -141,7 +142,8 @@ class _OutfitPageState extends State<OutfitPage> {
             Text("Define Your Look",
                 style: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
-            Text("Set constraints to guide the AI recommendation.",
+            // Updated text to reflect optional nature
+            Text("Set constraints or leave empty for AI selection.",
                 style: GoogleFonts.poppins(color: Colors.black54)),
             const SizedBox(height: 32),
 
@@ -193,7 +195,7 @@ class _OutfitPageState extends State<OutfitPage> {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
       value: _criteria[key],
-      hint: Text("Select $label (Optional)"),
+      hint: const Text("Any (Optional)"), // ✅ Clearer hint
       isExpanded: true, // Prevents overflow for long color names
       items: options
           .map((item) => DropdownMenuItem(value: item, child: Text(item)))
@@ -206,6 +208,7 @@ class _OutfitPageState extends State<OutfitPage> {
     );
   }
 
+  // ✅ Updated: Force Top and Bottom to be selected and disabled
   Widget _buildSlotRequirements() {
     List<String> allSlots = ['Top', 'Bottom', 'Outerwear', 'Footwear', 'Accessory'];
     return Column(
@@ -215,25 +218,44 @@ class _OutfitPageState extends State<OutfitPage> {
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
-          children: allSlots.map((slot) => FilterChip(
-            label: Text(slot),
-            selected: _requiredSlots.contains(slot),
-            onSelected: (selected) {
-              setState(() {
-                if (selected) {
-                  _requiredSlots.add(slot);
-                } else {
-                  _requiredSlots.remove(slot);
-                }
-              });
-            },
-            selectedColor: AppConstants.primaryAccent.withOpacity(0.8),
-            backgroundColor: Colors.white,
-            labelStyle: GoogleFonts.poppins(
-              color: _requiredSlots.contains(slot) ? Colors.white : Colors.black87,
-              fontSize: 13,
-            ),
-          )).toList(),
+          children: allSlots.map((slot) {
+            // Is this a mandatory field?
+            final bool isMandatory = slot == 'Top' || slot == 'Bottom';
+            final bool isSelected = _requiredSlots.contains(slot);
+
+            return FilterChip(
+              label: Text(slot),
+              // Mandatory items are always selected
+              selected: isMandatory ? true : isSelected,
+              // Mandatory items cannot be unselected (onSelected is null disables interactivity)
+              onSelected: isMandatory 
+                  ? null 
+                  : (selected) {
+                      setState(() {
+                        if (selected) {
+                          _requiredSlots.add(slot);
+                        } else {
+                          _requiredSlots.remove(slot);
+                        }
+                      });
+                    },
+              // Visual styling for disabled/mandatory chips
+              selectedColor: isMandatory 
+                  ? Colors.grey.shade400 // Grey out mandatory to show they are fixed
+                  : AppConstants.primaryAccent.withOpacity(0.8),
+              backgroundColor: Colors.white,
+              disabledColor: Colors.grey.shade300, // Ensure disabled look is distinct
+              labelStyle: GoogleFonts.poppins(
+                color: (isMandatory || isSelected) ? Colors.white : Colors.black87,
+                fontSize: 13,
+                fontWeight: isMandatory ? FontWeight.w600 : FontWeight.normal,
+              ),
+              // Add a lock icon for mandatory items for better UX
+              avatar: isMandatory 
+                  ? const Icon(Icons.lock, size: 14, color: Colors.white) 
+                  : null,
+            );
+          }).toList(),
         ),
       ],
     );

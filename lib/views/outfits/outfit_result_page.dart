@@ -13,9 +13,7 @@ class OutfitResultPage extends StatelessWidget {
   const OutfitResultPage({super.key, required this.controller});
 
   void _markAsWorn(BuildContext context) async {
-    // Calls the updated method in OutfitController
     await controller.markAsWorn();
-    
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Outfit marked as worn! Analytics updated.')),
@@ -29,7 +27,6 @@ class OutfitResultPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Access directly (no longer a ValueNotifier)
     final Outfit? outfit = controller.currentOutfit;
 
     if (outfit == null) {
@@ -56,8 +53,6 @@ class OutfitResultPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- Recommendation Header ---
-            // 'title' and 'description' removed from Outfit model, using static/dynamic text
             Text("AI Recommended Look",
                 style: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
@@ -65,15 +60,13 @@ class OutfitResultPage extends StatelessWidget {
                 style: GoogleFonts.poppins(color: Colors.black54)),
             const SizedBox(height: 32),
 
-            // --- Outfit Display ---
+            // --- Outfit Display (Visual Grid Updated) ---
             _buildOutfitDisplay(outfit.items),
             const SizedBox(height: 32),
 
-            // --- Action Buttons ---
             _buildActionButtons(context),
             const SizedBox(height: 32),
 
-            // --- Why This Outfit? Section ---
             _buildWhyThisOutfit(outfit.suggestionLogic),
             const SizedBox(height: 40),
           ],
@@ -97,26 +90,87 @@ class OutfitResultPage extends StatelessWidget {
           const Divider(height: 24),
           
           Wrap(
-            spacing: 12.0,
-            runSpacing: 12.0,
+            spacing: 8.0,
+            runSpacing: 8.0,
             alignment: WrapAlignment.center,
             children: items.map((item) => _buildItemPill(item)).toList(),
           ),
           const SizedBox(height: 24),
 
-          // --- MOCK STYLED OUTFIT IMAGE ---
+          // --- VISUAL GRID (Shows ALL items now) ---
+          // ✅ FIX: Removed fixed height so it expands to show all items
           Container(
-            height: 300,
             decoration: BoxDecoration(
               color: AppConstants.background,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.black12, width: 1),
             ),
-            child: const Center(
-              child: Text("Styled Outfit Image Placeholder", style: TextStyle(color: Colors.black54)),
-            ),
+            child: _buildVisualGrid(items),
           )
         ],
+      ),
+    );
+  }
+
+  Widget _buildVisualGrid(List<ClothingItem> items) {
+    if (items.isEmpty) return const Center(child: Padding(padding: EdgeInsets.all(20), child: Text("No items to display")));
+
+    // Dynamic grid layout based on item count
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: GridView.builder(
+        padding: const EdgeInsets.all(8),
+        physics: const NeverScrollableScrollPhysics(),
+        shrinkWrap: true, // ✅ FIX: Allows grid to expand vertically to fit all items
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: items.length <= 1 ? 1 : 2, 
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
+          // Adjust aspect ratio so images aren't squashed
+          childAspectRatio: items.length >= 3 ? 0.8 : 1.0, 
+        ),
+        itemCount: items.length,
+        itemBuilder: (context, index) {
+          final item = items[index];
+          return Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                    child: Image.network(
+                      item.imageUrl,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => 
+                          const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+                    ),
+                  ),
+                ),
+                // Label at bottom of image
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  color: AppConstants.primaryAccent.withOpacity(0.05),
+                  child: Text(
+                    // ✅ FIX: Use 'articleType' (T-shirt) instead of 'subCategory' (Topwear)
+                    item.articleType, 
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w500),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -124,10 +178,10 @@ class OutfitResultPage extends StatelessWidget {
   Widget _buildItemPill(ClothingItem item) {
     return Chip(
       // Using 'articleType' and 'baseColour' from your new model
-      label: Text("${item.articleType} - ${item.baseColour}"),
+      label: Text("${item.articleType} - ${item.baseColour}", style: const TextStyle(fontSize: 11)),
       backgroundColor: AppConstants.primaryAccent.withOpacity(0.1),
-      labelStyle: GoogleFonts.poppins(fontSize: 13, color: AppConstants.primaryAccent),
-      avatar: Icon(Icons.checkroom_outlined, size: 18, color: AppConstants.primaryAccent),
+      labelStyle: GoogleFonts.poppins(color: AppConstants.primaryAccent),
+      avatar: Icon(Icons.checkroom_outlined, size: 16, color: AppConstants.primaryAccent),
     );
   }
 

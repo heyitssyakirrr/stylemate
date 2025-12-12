@@ -10,9 +10,9 @@ class OutfitController extends ChangeNotifier {
   bool isLoading = false;
 
   Future<void> generateOutfit({
-    required String usage,
-    required String season,
-    required String color,
+    String? usage,   // ✅ Changed to Optional
+    String? season,  // ✅ Changed to Optional
+    String? color,   // ✅ Changed to Optional
     String? anchorItemId,
     required List<String> slots, // e.g. ["Top", "Bottom", "Outerwear"]
   }) async {
@@ -23,15 +23,20 @@ class OutfitController extends ChangeNotifier {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) throw Exception("User not logged in");
 
+      // ✅ LOGIC FIX: Check if null. If null, send empty list [] (which means 'Any').
+      final usageFilter = usage != null ? [usage] : [];
+      final seasonFilter = season != null ? [season] : [];
+      final colorFilter = color != null ? [color] : [];
+
       // Call the Supabase Edge Function (Python/TS backend)
       final res = await _supabase.functions.invoke(
         'outfit-recommender',
         body: {
           'user_id': userId,
           'constraints': {
-            'usage': [usage],        // e.g. "Casual"
-            'season': [season],      // e.g. "Summer"
-            'baseColour': [color]    // e.g. "Blue" (Maps to ColorPreference)
+            'usage': usageFilter,       
+            'season': seasonFilter,     
+            'baseColour': colorFilter   
           },
           'anchor_id': anchorItemId, // Specific Item ID (e.g. the Blue Jeans)
           'required_slots': slots,   // e.g. ["Top", "Bottom"]
