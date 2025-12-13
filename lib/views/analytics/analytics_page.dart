@@ -28,46 +28,66 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         backgroundColor: AppConstants.background,
         iconTheme: const IconThemeData(color: Colors.black87),
       ),
-      body: RefreshIndicator(
-        onRefresh: _controller.refreshAnalytics,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppConstants.kPadding * 1.5),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("Sustainability Dashboard",
-                  style: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              Text("Track your environmental impact and wardrobe usage.",
-                  style: GoogleFonts.poppins(color: Colors.black54)),
-              const SizedBox(height: 32),
+      // ✅ Wrap body in ListenableBuilder to rebuild when data loads
+      body: ListenableBuilder(
+        listenable: _controller,
+        builder: (context, child) {
+          if (_controller.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-              // --- Sustainability Metrics ---
-              _buildSustainabilityMetrics(),
-              const SizedBox(height: 32),
+          return RefreshIndicator(
+            onRefresh: _controller.refreshAnalytics,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(AppConstants.kPadding * 1.5),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Sustainability Dashboard",
+                      style: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  Text("Track your real wardrobe usage statistics.",
+                      style: GoogleFonts.poppins(color: Colors.black54)),
+                  const SizedBox(height: 32),
 
-              // --- Wear Frequency Chart ---
-              _buildSectionHeader("Wear Frequency by Category"),
-              _buildChartCard(
-                child: _buildBarChartPlaceholder(_controller.wearFrequencyData),
+                  // --- Sustainability Metrics ---
+                  _buildSustainabilityMetrics(),
+                  const SizedBox(height: 32),
+
+                  // --- Wear Frequency Chart ---
+                  _buildSectionHeader("Wear Count by Category"),
+                  _buildChartCard(
+                    child: _controller.wearFrequencyData.isEmpty 
+                      ? _buildEmptyState("Start marking outfits as worn to see data.")
+                      : _buildBarChartPlaceholder(_controller.wearFrequencyData),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // --- Most Worn Items (Scrollable) ---
+                  _buildSectionHeader("Your Top Worn Items"),
+                  _buildChartCard(
+                    height: 300, // Fixed height to allow scrolling inside
+                    child: _controller.mostWornItems.isEmpty
+                      ? _buildEmptyState("No wear data yet.")
+                      : _buildListChartPlaceholder(_controller.mostWornItems),
+                  ),
+                  const SizedBox(height: 32),
+                  
+                  // --- Encourage Message ---
+                  _buildEncourageMessage(),
+                  const SizedBox(height: 40),
+                ],
               ),
-              const SizedBox(height: 32),
-
-              // --- Most Worn Items ---
-              _buildSectionHeader("Most Worn Items (Total Count)"),
-              _buildChartCard(
-                height: 200,
-                child: _buildListChartPlaceholder(_controller.mostWornItems),
-              ),
-              const SizedBox(height: 32),
-              
-              // --- Encourage Message ---
-              _buildEncourageMessage(),
-              const SizedBox(height: 40),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
+    );
+  }
+
+  Widget _buildEmptyState(String message) {
+    return Center(
+      child: Text(message, style: GoogleFonts.poppins(color: Colors.black45)),
     );
   }
 
@@ -99,39 +119,91 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     );
   }
 
-  // Placeholder for a Bar Chart (simulated with Text)
+  // ✅ UPDATED: Bar Chart fills the width and fits labels properly
   Widget _buildBarChartPlaceholder(List<ChartDataPoint> data) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text("Placeholder: Bar Chart (e.g., fl_chart)",
-              style: GoogleFonts.poppins(color: Colors.black38)),
-          const SizedBox(height: 10),
-          ...data.map((p) => Text("${p.label}: ${p.value} uses", 
-              style: GoogleFonts.poppins(fontSize: 12))),
-        ],
-      ),
+    // Find max value to normalize bar height
+    double maxVal = 0;
+    for(var p in data) { if (p.value > maxVal) maxVal = p.value; }
+    if (maxVal == 0) maxVal = 1;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      // Removed MainAxisAlignment.start/spaceEvenly - Explained below
+      children: data.map((point) {
+        return Expanded( // ✅ 1. Expanded forces items to fill all available space equally
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2.0), // Small padding between bars
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                // Value Label
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text("${point.value.toInt()}", 
+                    style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(height: 4),
+                // The Bar
+                Container(
+                  width: double.infinity, // Fill the width of the Expanded column (minus padding)
+                  height: (point.value / maxVal) * 150, // Scale height relative to max
+                  decoration: BoxDecoration(
+                    color: point.color,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Category Label
+                // ✅ 2. FittedBox ensures "Bottomwear" scales down to fit horizontally without wrapping/rotating
+                SizedBox(
+                  height: 20, // Constrain height so alignment stays consistent
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.center,
+                    child: Text(
+                      point.label, 
+                      style: GoogleFonts.poppins(fontSize: 10),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
   
-  // Placeholder for a List Chart / Ranking
+  // Scrollable List with Scrollbar
   Widget _buildListChartPlaceholder(List<ChartDataPoint> data) {
-    return ListView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: data.length,
-      itemBuilder: (context, index) {
-        final item = data[index];
-        return ListTile(
-          dense: true,
-          leading: CircleAvatar(
-            backgroundColor: item.color,
-            child: Text((index + 1).toString(), style: const TextStyle(color: Colors.white)),
-          ),
-          title: Text(item.label, style: GoogleFonts.poppins(fontWeight: FontWeight.w500)),
-          trailing: Text("${item.value.round()} wears", style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-        );
-      },
+    return Scrollbar(
+      thumbVisibility: true, 
+      child: ListView.separated(
+        padding: const EdgeInsets.only(right: 12.0), 
+        itemCount: data.length,
+        separatorBuilder: (c, i) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          final item = data[index];
+          return ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: CircleAvatar(
+              radius: 14,
+              backgroundColor: AppConstants.primaryAccent,
+              child: Text((index + 1).toString(), style: const TextStyle(color: Colors.white, fontSize: 12)),
+            ),
+            title: Text(item.label, style: GoogleFonts.poppins(fontWeight: FontWeight.w500)),
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text("${item.value.toInt()}x", style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 12)),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -147,7 +219,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 
   Widget _buildMetricCard(SustainabilityMetric metric) {
     return Container(
-      width: (MediaQuery.of(context).size.width - (AppConstants.kPadding * 4.5)) / 2, // Half width minus padding
+      width: (MediaQuery.of(context).size.width - (AppConstants.kPadding * 4.5)) / 2, 
       padding: const EdgeInsets.all(AppConstants.kPadding),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -160,7 +232,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           Icon(metric.icon, color: metric.color, size: 32),
           const SizedBox(height: 8),
           Text(metric.value, 
-            style: GoogleFonts.poppins(fontSize: 28, fontWeight: FontWeight.w700, color: metric.color)),
+            style: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.w700, color: metric.color)),
           const SizedBox(height: 4),
           Text(metric.title, 
             style: GoogleFonts.poppins(fontSize: 13, color: Colors.black87, fontWeight: FontWeight.w500)),

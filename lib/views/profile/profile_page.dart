@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:stylemate/services/notification_service.dart';
 import '../../utils/constants.dart';
 import '../../controllers/auth_controller.dart';
 import '../../utils/routes.dart';
@@ -16,18 +17,21 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final AuthController _authController = AuthController();
   
-  // --- Local State for Profile Editing (MOCK) ---
+  // Controllers
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController(); // ✅ New
+  
   bool _isEditingProfile = false;
-  String _preferredStyle = 'Minimalist';
+  bool _dailyReminderEnabled = false; // ✅ Toggle state
 
   @override
   void initState() {
     super.initState();
     final user = _authController.currentUser;
-    // Pre-fill fields with current user data
-    _nameController.text = user?.email?.split('@')[0] ?? "Guest User";
+    // Pre-fill fields. Check metadata for name, fallback to email part
+    final metaName = user?.userMetadata?['full_name'];
+    _nameController.text = metaName ?? user?.email?.split('@')[0] ?? "Guest User";
     _emailController.text = user?.email ?? "N/A";
   }
 
@@ -35,32 +39,94 @@ class _ProfilePageState extends State<ProfilePage> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
-  void _toggleEdit() {
+  void _toggleEdit() async {
+    if (_isEditingProfile) {
+      // If we were editing and just clicked save:
+      await _saveProfile(); 
+    }
+    
     setState(() {
       _isEditingProfile = !_isEditingProfile;
-      if (!_isEditingProfile) {
-        _saveProfile(); // Auto-save when exiting edit mode
-      }
     });
   }
 
-  void _saveProfile() {
-    // In a real app, this would update Supabase metadata or a profile table.
-    debugPrint("Profile saved: Name: ${_nameController.text}, Style: $_preferredStyle");
+  Future<void> _saveProfile() async {
+    final error = await _authController.updateProfile(
+      name: _nameController.text,
+      email: _emailController.text,
+      // Only send password if user typed something new
+      password: _passwordController.text.isNotEmpty ? _passwordController.text : null,
+    );
+
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile settings updated successfully!')),
-      );
+      if (error == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile updated successfully!')),
+        );
+        _passwordController.clear(); // Clear password field after save
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  // ✅ UPDATED: Connects to Notification Service
+  void _toggleNotification(bool value) async {
+    final notificationService = NotificationService();
+
+    if (value) {
+      // 1. Request Permission first
+      bool granted = await notificationService.requestPermissions();
+      
+      if (granted) {
+        // 2. Schedule the alarm
+        await notificationService.scheduleDailyNotification();
+        
+        setState(() {
+          _dailyReminderEnabled = true;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Daily Reminder scheduled for 8:00 AM!')),
+          );
+        }
+      } else {
+        // Permission denied logic
+        setState(() {
+          _dailyReminderEnabled = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Permission denied. Please enable notifications in settings.')),
+          );
+        }
+      }
+    } else {
+      // 3. Cancel the alarm if toggled off
+      await notificationService.cancelDailyNotification();
+      
+      setState(() {
+        _dailyReminderEnabled = false;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Daily Reminder turned off.')),
+        );
+      }
     }
   }
 
   void _logout() async {
     await _authController.signOut();
     if (mounted) {
-      // Navigate user back to the login page and clear the navigation stack
       Navigator.of(context).pushNamedAndRemoveUntil(
         Routes.auth, 
         (Route<dynamic> route) => false,
@@ -97,11 +163,6 @@ class _ProfilePageState extends State<ProfilePage> {
           children: [
             // --- Profile Card ---
             _buildProfileCard(),
-            const SizedBox(height: 32),
-
-            // --- Style Preferences ---
-            _buildSectionHeader("Style Preferences"),
-            _buildStylePreferencesCard(),
             const SizedBox(height: 32),
 
             // --- App Settings ---
@@ -144,11 +205,12 @@ class _ProfilePageState extends State<ProfilePage> {
         children: [
           const CircleAvatar(
             radius: 40,
-            backgroundColor: Color(0xFFF0EAE4), // Lighter accent color
+            backgroundColor: Color(0xFFF0EAE4), 
             child: Icon(Icons.person_rounded, size: 48, color: Color(0xFF7D5A50)),
           ),
           const SizedBox(height: 20),
           
+          // Name Field
           TextField(
             controller: _nameController,
             enabled: _isEditingProfile,
@@ -160,53 +222,38 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
           const Divider(),
+          
+          // Email Field
           TextField(
             controller: _emailController,
-            enabled: false, // Email is typically not editable
-            style: GoogleFonts.poppins(color: Colors.black54),
+            enabled: _isEditingProfile, // Now Editable
+            style: GoogleFonts.poppins(color: Colors.black87),
             decoration: InputDecoration(
               labelText: "Email",
-              border: InputBorder.none,
+              border: _isEditingProfile ? const OutlineInputBorder() : InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
             ),
           ),
+
+          // ✅ NEW: Password Change Field (Only visible in Edit Mode)
+          if (_isEditingProfile) ...[
+            const SizedBox(height: 16),
+            TextField(
+              controller: _passwordController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: "New Password (Leave empty to keep)",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.lock_outline),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildStylePreferencesCard() {
-    List<String> styleOptions = ['Minimalist', 'Bohemian', 'Sporty', 'Classic', 'Edgy'];
-    
-    return Container(
-      padding: const EdgeInsets.all(AppConstants.kPadding),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppConstants.kRadius),
-        boxShadow: const [AppConstants.cardShadow],
-      ),
-      child: DropdownButtonFormField<String>(
-        decoration: const InputDecoration(
-          labelText: "Preferred Style Look",
-          border: OutlineInputBorder(),
-        ),
-        value: _preferredStyle,
-        items: styleOptions
-            .map((style) => DropdownMenuItem(value: style, child: Text(style)))
-            .toList(),
-        onChanged: _isEditingProfile 
-            ? (newValue) {
-                setState(() {
-                  _preferredStyle = newValue!;
-                });
-              }
-            : null,
-        style: GoogleFonts.poppins(color: Colors.black87),
-        dropdownColor: Colors.white,
-      ),
-    );
-  }
-
+  // ✅ UPDATED: Only Daily Outfit Reminder
   Widget _buildNotificationSettings() {
     return Container(
       padding: const EdgeInsets.all(AppConstants.kPadding),
@@ -220,13 +267,11 @@ class _ProfilePageState extends State<ProfilePage> {
           _buildSettingsTile(
             'Daily Outfit Reminders',
             Icons.notifications_active_outlined,
-            const Switch(value: true, onChanged: null), // Mocked for UI
-          ),
-          const Divider(),
-          _buildSettingsTile(
-            'Sustainability Insights',
-            Icons.eco_outlined,
-            const Switch(value: true, onChanged: null), // Mocked for UI
+            Switch(
+              value: _dailyReminderEnabled, 
+              onChanged: _toggleNotification, // ✅ Connected logic
+              activeColor: AppConstants.primaryAccent,
+            ),
           ),
         ],
       ),

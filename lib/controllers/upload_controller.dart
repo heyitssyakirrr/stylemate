@@ -26,6 +26,51 @@ class UploadController extends ChangeNotifier {
   // Getter for Dropdown options
   Map<String, List<String>> get labelOptions => _mlService.labelMaps;
 
+  // ✅ NEW: Master Map to group Article Types into Parent Categories
+  final Map<String, String> _categoryGrouping = {
+    // Topwear
+    'Tshirts': 'Topwear', 'Shirts': 'Topwear', 'Tops': 'Topwear', 
+    'Sweatshirts': 'Topwear', 'Sweaters': 'Topwear', 'Kurtas': 'Topwear', 
+    'Tunics': 'Topwear', 'Waistcoat': 'Topwear', 'Camisoles': 'Topwear', 
+    'Vest': 'Topwear', 'Innerwear Vests': 'Topwear', 'Blouses': 'Topwear',
+    
+    // Bottomwear
+    'Jeans': 'Bottomwear', 'Trousers': 'Bottomwear', 'Shorts': 'Bottomwear', 
+    'Track Pants': 'Bottomwear', 'Skirts': 'Bottomwear', 'Leggings': 'Bottomwear', 
+    'Capris': 'Bottomwear', 'Salwar': 'Bottomwear', 'Churidar': 'Bottomwear', 
+    'Patiala': 'Bottomwear', 'Palazzos': 'Bottomwear', 'Stockings': 'Bottomwear', 
+    'Swimwear': 'Bottomwear',
+    
+    // Outerwear
+    'Jackets': 'Outerwear', 'Blazers': 'Outerwear', 'Rain Jacket': 'Outerwear', 
+    'Coats': 'Outerwear', 'Cardigans': 'Outerwear', 'Shrug': 'Outerwear',
+    
+    // Dress
+    'Dresses': 'Dress', 'Sarees': 'Dress', 'Lehenga Choli': 'Dress', 
+    'Kurtis': 'Dress', 
+    
+    // Jumpsuit
+    'Jumpsuit': 'Jumpsuit', 'Rompers': 'Jumpsuit', 'Dungarees': 'Jumpsuit',
+    
+    // Set
+    'Tracksuits': 'Set', 'Suits': 'Set', 'Apparel Set': 'Set', 
+    'Night suits': 'Set', 'Lounge Wear': 'Set',
+    
+    // Footwear
+    'Casual Shoes': 'Footwear', 'Flats': 'Footwear', 'Heels': 'Footwear', 
+    'Formal Shoes': 'Footwear', 'Sports Shoes': 'Footwear', 'Sandals': 'Footwear', 
+    'Flip Flops': 'Footwear', 'Boots': 'Footwear', 'Sneakers': 'Footwear',
+    
+    // Accessory
+    'Watches': 'Accessory', 'Belts': 'Accessory', 'Handbags': 'Accessory', 
+    'Wallets': 'Accessory', 'Sunglasses': 'Accessory', 'Jewellery': 'Accessory', 
+    'Gloves': 'Accessory', 'Caps': 'Accessory', 'Scarves': 'Accessory', 
+    'Ties': 'Accessory', 'Cufflinks': 'Accessory', 'Socks': 'Accessory', 
+    'Mufflers': 'Accessory', 'Stoles': 'Accessory', 'Perfume': 'Accessory', 
+    'Deodorant': 'Accessory', 'Water Bottle': 'Accessory', 'Bags': 'Accessory',
+    'Headwear': 'Accessory', 'Eyewear': 'Accessory'
+  };
+
   UploadController() {
     _init();
   }
@@ -58,14 +103,19 @@ class UploadController extends ChangeNotifier {
       final tags = result['tags'] as Map<String, String>;
       final embedding = result['embedding'] as List<double>;
 
+      String predictedArticle = tags['articleType'] ?? 'Tshirts';
+      
+      // ✅ FIX: Auto-assign Parent Category based on the map
+      // This ensures 'Gloves' becomes 'Accessory' automatically
+      String groupedCategory = _categoryGrouping[predictedArticle] ?? 'Accessory'; 
+
       // 2. Update the item with AI results
-      // Notice: No 'brand' or 'customNote' here, matching your Model
       itemNotifier.value = ClothingItem(
         id: '', 
         userId: _supabase.auth.currentUser?.id ?? '', 
         imageUrl: '', // Will be set after upload
-        subCategory: tags['subCategory'] ?? 'Topwear',
-        articleType: tags['articleType'] ?? 'Tshirts',
+        subCategory: groupedCategory, // ✅ Using the Parent Group here
+        articleType: predictedArticle,
         baseColour: tags['baseColour'] ?? 'Black',
         usage: tags['usage'] ?? 'Casual',
         gender: tags['gender'] ?? 'Unisex',
@@ -84,10 +134,6 @@ class UploadController extends ChangeNotifier {
   // 3. Called when Dropdown value changes
   void updateTag(String field, String value) {
     final current = itemNotifier.value;
-    
-    // We create a new object because ClothingItem is immutable (final fields)
-    // This assumes you haven't added copyWith to your model yet. 
-    // If you did add copyWith, use that. If not, we construct it manually:
     
     itemNotifier.value = ClothingItem(
       id: current.id,

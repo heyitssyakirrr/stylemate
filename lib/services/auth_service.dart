@@ -17,12 +17,20 @@ class AuthService {
     );
   }
 
-  // --- FIX APPLIED ---
   Future<void> resetPasswordForEmail(String email) async {
-    // This calls the Supabase API to send the reset link to the provided email.
     await _supabase.auth.resetPasswordForEmail(email);
   }
-  // -------------------
+
+  // ✅ NEW: Update User Details
+  Future<UserResponse> updateUser({String? email, String? password, String? name}) async {
+    final attributes = UserAttributes(
+      email: email,
+      password: password,
+      // We store 'name' in user_metadata since Supabase auth doesn't have a 'name' column
+      data: name != null ? {'full_name': name} : null,
+    );
+    return await _supabase.auth.updateUser(attributes);
+  }
 
   Future<void> signOut() async {
     await _supabase.auth.signOut();

@@ -30,19 +30,33 @@ class AuthController {
     }
   }
   
-  // --- NEW: Forgot Password Logic ---
   Future<String?> sendPasswordResetLink(String email) async {
     try {
       await _authService.resetPasswordForEmail(email);
       return null; // success
     } on AuthException catch (e) {
-      // Catch specific Supabase errors, though often it returns a generic message for security
       return e.message; 
     } catch (e) {
       return "An unknown error occurred. Please try again.";
     }
   }
-  // ------------------------------------
+
+  // ✅ NEW: Update Profile Logic
+  Future<String?> updateProfile({String? email, String? password, String? name}) async {
+    try {
+      // Only pass fields that actually have text
+      await _authService.updateUser(
+        email: (email != null && email.isNotEmpty) ? email : null,
+        password: (password != null && password.isNotEmpty) ? password : null,
+        name: (name != null && name.isNotEmpty) ? name : null,
+      );
+      return null; // success
+    } on AuthException catch (e) {
+      return e.message;
+    } catch (e) {
+      return "Failed to update profile: $e";
+    }
+  }
 
   Future<void> signOut() async {
     await _authService.signOut();

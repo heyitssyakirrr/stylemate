@@ -8,20 +8,22 @@ class WeatherService {
   // ⚠️ ACTION REQUIRED: REPLACE WITH YOUR KEY ⚠️
   static const String apiKey = '84cf3cbda60fcd39c4f89081e15d3867';
   
-  // Base URL for the weather icon image
   static const String iconBaseUrl = 'https://openweathermap.org/img/wn/';
 
-  // Default location (e.g., London coordinates)
-  // You might want to get the user's current location in a later step
+  // Default fallback (London) if no coordinates are passed
   static const double defaultLat = 51.5074;
   static const double defaultLon = 0.1278;
 
   Future<Weather> fetchCurrentWeather({
-    double lat = defaultLat,
-    double lon = defaultLon,
+    double? lat,
+    double? lon,
   }) async {
+    // Use passed coordinates, or fallback to default
+    final latitude = lat ?? defaultLat;
+    final longitude = lon ?? defaultLon;
+
     final uri = Uri.parse(
-        'https://api.openweathermap.org/data/2.5/weather?lat=$lat&lon=$lon&appid=$apiKey&units=metric');
+        'https://api.openweathermap.org/data/2.5/weather?lat=$latitude&lon=$longitude&appid=$apiKey&units=metric');
 
     try {
       final response = await http.get(uri);
@@ -30,16 +32,13 @@ class WeatherService {
         final data = json.decode(response.body);
         return Weather.fromJson(data);
       } else {
-        // Handle API errors (e.g., invalid key, rate limit)
         throw Exception('Failed to load weather data: ${response.statusCode}');
       }
     } catch (e) {
-      // Handle network errors
       throw Exception('Network error while fetching weather: $e');
     }
   }
   
-  // Helper to construct the icon URL
   String getWeatherIconUrl(String iconCode) {
     return '$iconBaseUrl$iconCode@2x.png';
   }

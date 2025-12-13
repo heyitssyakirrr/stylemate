@@ -1,7 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
 
-// --- Interfaces for Type Safety ---
-
 interface ClothingItem {
   id: number;
   user_id: string;
@@ -10,14 +8,12 @@ interface ClothingItem {
   season: string;
   usage: string;
   sub_category: string;
-  // Fix: Explicitly allow string (from DB text) or number array (from JSON)
   embedding: string | number[]; 
 }
 
 interface RequestPayload {
   user_id: string;
   anchor_id?: number;
-  // We removed required_slots to fix "unused variable" warning
   constraints: {
     usage?: string[];
     season?: string[];
@@ -31,9 +27,6 @@ interface OutfitRecommendation {
   items: ClothingItem[];
 }
 
-// --- Helper Functions ---
-
-// Fix: Input type is specific, not 'any'
 function parseEmbedding(embedding: string | number[] | null | undefined): number[] {
   if (!embedding) return [];
   if (Array.isArray(embedding)) return embedding;
@@ -112,7 +105,7 @@ Deno.serve(async (req: Request) => {
   const season = constraints?.season ?? [];
   const baseColour = constraints?.baseColour ?? [];
   
-  // Default to just Top+Bottom if not specified
+  // Default to Top+Bottom if not specified
   const slots = required_slots && required_slots.length > 0 ? required_slots : ['Top', 'Bottom'];
 
   try {
@@ -123,110 +116,114 @@ Deno.serve(async (req: Request) => {
 
     if (error) throw error;
     
-    // Explicit cast avoids implicit 'any' issues downstream
     const closet = closetData as ClothingItem[];
 
     // 1. Filter Candidates
     const candidates = closet.filter((item) => {
-      // ✅ Relaxed matching (Case-insensitive)
       const matchUsage = usage.length === 0 || usage.some(u => u.toLowerCase() === item.usage.toLowerCase());
       
-      // ✅ Correct logic for "All Seasons"
-      const matchSeason = season.length === 0 || season.includes('All Seasons') || season.some(s => s.toLowerCase() === item.season.toLowerCase());
+      // ✅ Accessories often don't have seasons/usage strictness, relax it for them
+      const isAccessory = ['Accessory', 'Footwear'].includes(item.sub_category);
       
+      const matchSeason = isAccessory || season.length === 0 || season.includes('All Seasons') || season.some(s => s.toLowerCase() === item.season.toLowerCase());
       const matchColor = baseColour.length === 0 || baseColour.some(c => c.toLowerCase() === item.base_colour.toLowerCase());
-      
       const hasEmbedding = item.embedding !== null;
 
       return matchUsage && matchSeason && matchColor && hasEmbedding;
     });
 
-    // 2. Define Separate Pools based on your label_maps.json
-    // We separate "Inner Tops" from "Outerwear" so we can layer them.
-    const innerTopTypes = ['Tshirts', 'Shirts', 'Tops', 'Kurtas', 'Tunics', 'Waistcoat', 'Camisoles', 'Vest'];
-    const outerwearTypes = ['Jackets', 'Sweaters', 'Blazers', 'Sweatshirts', 'Rain Jacket', 'Shrug']; // ✅ Outerwear specific
-    const bottomTypes = ['Jeans', 'Trousers', 'Shorts', 'Track Pants', 'Skirts', 'Leggings', 'Capris', 'Salwar', 'Churidar', 'Patiala', 'Palazzos'];
-    const footwearTypes = ['Casual Shoes', 'Flats', 'Heels', 'Formal Shoes', 'Sports Shoes', 'Sandals', 'Flip Flops'];
-    const accessoryTypes = ['Watches', 'Belts', 'Handbags', 'Sunglasses', 'Earrings', 'Necklace and Chains', 'Bags', 'Wallets'];
-
-    // 3. Pool Candidates
-    const tops = candidates.filter((i) => 
-      innerTopTypes.includes(i.article_type) || (i.sub_category === 'Topwear' && !outerwearTypes.includes(i.article_type))
-    );
+    // 2. Define Pools based on the new Parent Categories (sub_category)
+    const tops = candidates.filter(i => i.sub_category === 'Topwear');
+    const bottoms = candidates.filter(i => i.sub_category === 'Bottomwear');
+    const dresses = candidates.filter(i => i.sub_category === 'Dress');
+    const jumpsuits = candidates.filter(i => i.sub_category === 'Jumpsuit');
+    const sets = candidates.filter(i => i.sub_category === 'Set');
     
-    const layers = candidates.filter((i) => 
-      outerwearTypes.includes(i.article_type) // ✅ Pool for Outerwear
-    );
-
-    const bottoms = candidates.filter((i) => 
-      (i.sub_category === 'Bottomwear') || bottomTypes.includes(i.article_type)
-    );
-
-    const shoes = candidates.filter((i) => 
-      footwearTypes.includes(i.article_type) || i.sub_category === 'Shoes' || i.sub_category === 'Footwear'
-    );
-
-    const accessories = candidates.filter((i) => 
-      accessoryTypes.includes(i.article_type) || ['Accessories', 'Watches', 'Jewellery', 'Bags', 'Eyewear'].includes(i.sub_category)
-    );
+    // Add-on Pools
+    const outerwear = candidates.filter(i => i.sub_category === 'Outerwear');
+    const footwear = candidates.filter(i => i.sub_category === 'Footwear');
+    const accessories = candidates.filter(i => i.sub_category === 'Accessory');
 
     const recommendations: OutfitRecommendation[] = [];
 
-    // Limit combinations to prevent timeouts
+    // Limit pools to prevent timeouts
     const safeTops = tops.slice(0, 15);
     const safeBottoms = bottoms.slice(0, 15);
-    const safeLayers = layers.slice(0, 5);
-    const safeShoes = shoes.slice(0, 5);
-    const safeAccs = accessories.slice(0, 5);
+    const safeDresses = dresses.slice(0, 15);
+    const safeJumpsuits = jumpsuits.slice(0, 15);
+    const safeSets = sets.slice(0, 15);
+    
+    const safeOuter = outerwear.slice(0, 5);
+    const safeFoot = footwear.slice(0, 5);
+    const safeAcc = accessories.slice(0, 5);
 
-    // 4. Generate Combinations with Dynamic Slots
-    for (const top of safeTops) {
-      for (const btm of safeBottoms) {
-        let baseOutfit = [top, btm];
+    // 3. Generate Base Outfits (The Core Layer)
+    let baseOutfits: ClothingItem[][] = [];
 
-        // --- Try adding Outerwear if requested ---
-        let outfitOptions: ClothingItem[][] = [baseOutfit];
-        if (slots.includes('Outerwear') && safeLayers.length > 0) {
-            let newOptions: ClothingItem[][] = [];
-            for (const layer of safeLayers) {
-                // For each existing option, branch it with this layer
-                outfitOptions.forEach(opt => newOptions.push([...opt, layer]));
+    if (slots.includes('Dress')) {
+        safeDresses.forEach(d => baseOutfits.push([d]));
+    } 
+    else if (slots.includes('Jumpsuit')) {
+        safeJumpsuits.forEach(j => baseOutfits.push([j]));
+    }
+    else if (slots.includes('Set')) {
+        safeSets.forEach(s => baseOutfits.push([s]));
+    }
+    else if (slots.includes('Top') || slots.includes('Bottom')) {
+        // Separates Logic: Create pairs
+        for (const t of safeTops) {
+            for (const b of safeBottoms) {
+                baseOutfits.push([t, b]);
             }
-            if (newOptions.length > 0) outfitOptions = newOptions;
         }
-
-        // --- Try adding Footwear if requested ---
-        if (slots.includes('Footwear') && safeShoes.length > 0) {
-            let newOptions: ClothingItem[][] = [];
-            for (const shoe of safeShoes) {
-                outfitOptions.forEach(opt => newOptions.push([...opt, shoe]));
-            }
-            if (newOptions.length > 0) outfitOptions = newOptions;
-        }
-
-        // --- Try adding Accessories if requested ---
-        if (slots.includes('Accessory') && safeAccs.length > 0) {
-            let newOptions: ClothingItem[][] = [];
-            // Just add top 3 accessories to avoid loop explosion
-            const limitedAccs = safeAccs.slice(0, 3);
-            for (const acc of limitedAccs) {
-                 outfitOptions.forEach(opt => newOptions.push([...opt, acc]));
-            }
-            if (newOptions.length > 0) outfitOptions = newOptions;
-        }
-
-        // Score all generated combinations
-        for (const outfit of outfitOptions) {
-            const score = calculateHarmony(outfit, anchor_id);
-            recommendations.push({ score, items: outfit });
-        }
-      }
     }
 
-    // 5. Sort & Shuffle
+    // 4. Layering Logic: Add requested Add-ons to ALL base outfits
+    
+    // Add Outerwear?
+    if (slots.includes('Outerwear') && safeOuter.length > 0) {
+        let newBases: ClothingItem[][] = [];
+        for (const base of baseOutfits) {
+            for (const layer of safeOuter) {
+                newBases.push([...base, layer]);
+            }
+        }
+        if (newBases.length > 0) baseOutfits = newBases;
+    }
+
+    // Add Footwear?
+    if (slots.includes('Footwear') && safeFoot.length > 0) {
+        let newBases: ClothingItem[][] = [];
+        for (const base of baseOutfits) {
+            for (const shoe of safeFoot) {
+                newBases.push([...base, shoe]);
+            }
+        }
+        if (newBases.length > 0) baseOutfits = newBases;
+    }
+
+    // Add Accessory?
+    if (slots.includes('Accessory') && safeAcc.length > 0) {
+        let newBases: ClothingItem[][] = [];
+        // Just add top 2 accessories per outfit to avoid massive list
+        const limitedAcc = safeAcc.slice(0, 2); 
+        for (const base of baseOutfits) {
+            for (const acc of limitedAcc) {
+                newBases.push([...base, acc]);
+            }
+        }
+        if (newBases.length > 0) baseOutfits = newBases;
+    }
+
+    // 5. Calculate Harmony Score
+    for (const outfit of baseOutfits) {
+        const score = calculateHarmony(outfit, anchor_id);
+        recommendations.push({ score, items: outfit });
+    }
+
+    // 6. Sort & Shuffle
     recommendations.sort((a, b) => b.score - a.score);
     
-    // ✅ Add simple shuffling to top 15 results to show variety
     const topPool = recommendations.slice(0, 15);
     // Fisher-Yates shuffle
     for (let i = topPool.length - 1; i > 0; i--) {
@@ -241,8 +238,7 @@ Deno.serve(async (req: Request) => {
             JSON.stringify({ 
                 items: [],
                 harmonyScore: 0,
-                // Helpful debugging message
-                suggestionLogic: `No outfits found. Tops: ${tops.length}, Bottoms: ${bottoms.length}, Outerwear: ${layers.length}. Try relaxing filters.`,
+                suggestionLogic: `No valid outfits found. Base items found: ${baseOutfits.length}. Check if you have uploaded matching items for the requested slots.`,
                 alternatives: []
             }),
             { headers: { "Content-Type": "application/json" } }
@@ -251,10 +247,9 @@ Deno.serve(async (req: Request) => {
 
     const bestOutfit = topResults[0];
     
-    // Fix: Explicitly type the mapped alternative object
     const alternatives: OutfitRecommendation[] = topResults.slice(1).map(r => ({
         items: r.items,
-        score: Math.round(r.score * 100) // We map score -> harmonyScore in the response payload below
+        score: Math.round(r.score * 100) 
     }));
 
     const responsePayload = {
@@ -274,7 +269,6 @@ Deno.serve(async (req: Request) => {
     )
 
   } catch (err) {
-    // Fix: Explicit string conversion for unknown error types
     return new Response(JSON.stringify({ error: String(err) }), { status: 500 })
   }
 })

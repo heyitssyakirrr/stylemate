@@ -16,6 +16,12 @@ class UploadClothingPage extends StatefulWidget {
 class _UploadClothingPageState extends State<UploadClothingPage> {
   final UploadController _controller = UploadController();
 
+  // ✅ NEW: Fixed list of Parent Categories
+  final List<String> _parentCategories = [
+    'Topwear', 'Bottomwear', 'Dress', 'Jumpsuit', 
+    'Set', 'Outerwear', 'Footwear', 'Accessory'
+  ];
+
   @override
   void dispose() {
     _controller.dispose();
@@ -207,7 +213,8 @@ class _UploadClothingPageState extends State<UploadClothingPage> {
           ),
           child: Column(
             children: [
-              _buildDropdown("Sub Category", 'subCategory', item.subCategory, isProcessing),
+              // ✅ MODIFIED: Pass isFixed: true for Sub Category
+              _buildDropdown("Sub Category", 'subCategory', item.subCategory, isProcessing, isFixed: true),
               const SizedBox(height: 12),
               _buildDropdown("Article Type", 'articleType', item.articleType, isProcessing),
               const SizedBox(height: 12),
@@ -225,9 +232,16 @@ class _UploadClothingPageState extends State<UploadClothingPage> {
     );
   }
 
-  Widget _buildDropdown(String label, String mapKey, String currentValue, bool isDisabled) {
-    List<String> options = _controller.labelOptions[mapKey] ?? [];
-    if (options.isEmpty) options = ["Other"];
+  // ✅ Updated _buildDropdown to handle fixed lists
+  Widget _buildDropdown(String label, String mapKey, String currentValue, bool isDisabled, {bool isFixed = false}) {
+    List<String> options = [];
+    
+    if (isFixed) {
+      options = _parentCategories; // Use hardcoded list
+    } else {
+      options = _controller.labelOptions[mapKey] ?? []; // Use dynamic list
+      if (options.isEmpty) options = ["Other"];
+    }
     
     if (currentValue.isNotEmpty && !options.contains(currentValue)) {
       options = [...options, currentValue];

@@ -11,6 +11,7 @@ import 'utils/routes.dart';
 import 'views/splash/splash_page.dart';
 import 'views/auth/login_page.dart';
 import 'views/auth/register_page.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,6 +25,9 @@ void main() async {
   } catch (e) {
     debugPrint("Supabase init failed (Offline mode?): $e");
   }
+
+  // ✅ ADD THIS LINE: Initialize Notifications
+  await NotificationService().init();
 
   runApp(const StyleMateApp());
 }

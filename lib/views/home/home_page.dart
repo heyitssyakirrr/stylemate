@@ -3,14 +3,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:stylemate/utils/constants.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; 
 import '../../controllers/auth_controller.dart';
 import '../../utils/routes.dart';
 import '../../widgets/bottom_nav.dart';
-// --- NEW IMPORTS ---
 import '../../controllers/weather_controller.dart'; 
-import '../../services/weather_service.dart'; // Used for icon URL
+import '../../services/weather_service.dart'; 
 import '../../models/weather.dart';
-// -------------------
+import '../../models/clothing_item.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,17 +21,57 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final AuthController _authController = AuthController();
-  final WeatherController _weatherController = WeatherController(); // Initialize controller
-  int selectedIndex = 0;
+  final WeatherController _weatherController = WeatherController();
+  
+  // ✅ NEW: Controller specifically for the outfit grid scrollbar
+  final ScrollController _outfitScrollController = ScrollController();
 
-  // Placeholder for the generated outfit.
-  // In a real app with Provider, this would update automatically when you generate an outfit.
-  // For now, it stays null to trigger the "Call to Action" state.
-  final Map<String, dynamic>? _todaysOutfit = null;
+  int selectedIndex = 0;
+  List<ClothingItem>? _todaysOutfitItems;
+  bool _isLoadingOutfit = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchTodaysLook(); 
+  }
+
+  Future<void> _fetchTodaysLook() async {
+    final userId = _authController.currentUser?.id;
+    if (userId == null) return;
+
+    try {
+      final now = DateTime.now();
+      final todayStart = DateTime(now.year, now.month, now.day).toIso8601String();
+
+      final response = await Supabase.instance.client
+          .from('clothing_items')
+          .select()
+          .eq('user_id', userId)
+          .gte('last_worn_date', todayStart);
+
+      if (mounted) {
+        setState(() {
+          if ((response as List).isNotEmpty) {
+            _todaysOutfitItems = (response as List)
+                .map((data) => ClothingItem.fromJson(data))
+                .toList();
+          } else {
+            _todaysOutfitItems = null;
+          }
+          _isLoadingOutfit = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching featured outfit: $e");
+      if (mounted) setState(() => _isLoadingOutfit = false);
+    }
+  }
 
   @override
   void dispose() {
-    _weatherController.dispose(); // Dispose controller to prevent memory leaks
+    _weatherController.dispose();
+    _outfitScrollController.dispose(); // ✅ Dispose the scroll controller
     super.dispose();
   }
 
@@ -70,8 +110,12 @@ class _HomeScreenState extends State<HomeScreen> {
         onTap: onNavTap,
       ),
       body: RefreshIndicator(
-        onRefresh: _weatherController.fetchWeather, // Pull-to-refresh weather
+        onRefresh: () async {
+          _weatherController.fetchWeather();
+          await _fetchTodaysLook(); 
+        },
         child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.symmetric(horizontal: AppConstants.kPadding * 1.5),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -82,7 +126,6 @@ class _HomeScreenState extends State<HomeScreen> {
               _buildQuickActionsGrid(),
               const SizedBox(height: 32),
               
-              // --- WEATHER WIDGET (Your existing code preserved) ---
               _buildWeatherCard(), 
               const SizedBox(height: 32),
 
@@ -91,7 +134,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     fontSize: 17, fontWeight: FontWeight.w600)),
               const SizedBox(height: 16),
 
-              // --- NEW: Dynamic Recommendation Card ---
               _buildDailyRecommendationCard(),
               const SizedBox(height: 40),
             ],
@@ -101,15 +143,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ... (unchanged _buildWelcomeHeader and _buildQuickActionsGrid methods)
-
   Widget _buildWelcomeHeader(String username) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text("Hi, $username 👋",
           style: GoogleFonts.poppins(
-            fontSize: 30, // Larger, more stylish greeting
+            fontSize: 30,
             fontWeight: FontWeight.w700,
             color: Colors.black87,
           )),
@@ -178,8 +218,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-
-  // --- WEATHER CARD (Unchanged logic) ---
   Widget _buildWeatherCard() {
     return ValueListenableBuilder<bool>(
       valueListenable: _weatherController.isLoading,
@@ -273,11 +311,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
   
-  // --- NEW: Dynamic Recommendation Card ---
-  // Replaces the old static image/text with the "Call to Action" design
   Widget _buildDailyRecommendationCard() {
-    // STATE 1: No Outfit Generated Yet (Call To Action)
-    if (_todaysOutfit == null) {
+    if (_isLoadingOutfit) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_todaysOutfitItems == null || _todaysOutfitItems!.isEmpty) {
       return GestureDetector(
         onTap: () => Navigator.pushNamed(context, Routes.outfit),
         child: Container(
@@ -332,8 +371,10 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    // STATE 2: Outfit Generated (Featured Display)
-    // This layout is ready for when you connect the real data
+    // FEATURED DISPLAY
+    final int itemCount = _todaysOutfitItems!.length;
+    final double aspectRatio = itemCount > 2 ? 1.3 : 0.9; 
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -346,51 +387,69 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Image / Preview Section
           Container(
-            height: 180,
+            height: 250, 
             width: double.infinity,
             decoration: BoxDecoration(
               color: AppConstants.background,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
             ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                const Icon(Icons.checkroom, size: 64, color: Colors.black12),
-                Positioned(
-                  bottom: 12,
-                  right: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.verified, size: 14, color: Colors.green),
-                        const SizedBox(width: 4),
-                        Text("92% Match", style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600)),
-                      ],
-                    ),
+            padding: const EdgeInsets.all(12),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              // ✅ FIXED: Added controller to Scrollbar and GridView to fix the error
+              child: Scrollbar(
+                thumbVisibility: true,
+                controller: _outfitScrollController, // Linked here
+                child: GridView.builder(
+                  controller: _outfitScrollController, // Linked here
+                  padding: const EdgeInsets.only(right: 6), 
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: itemCount <= 1 ? 1 : 2, 
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                    childAspectRatio: aspectRatio,
                   ),
+                  itemCount: itemCount,
+                  itemBuilder: (context, index) {
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.all(8),
+                      child: Image.network(
+                        _todaysOutfitItems![index].imageUrl,
+                        fit: BoxFit.contain, 
+                      ),
+                    );
+                  },
                 ),
-              ],
+              ),
             ),
           ),
+          
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("Casual Summer Fit", // Placeholder
+                Row(
+                  children: [
+                    const Icon(Icons.check_circle, size: 18, color: Colors.green),
+                    const SizedBox(width: 6),
+                    Text("Logged for Today", 
+                      style: GoogleFonts.poppins(fontSize: 12, color: Colors.green, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text("Your Style Selection", 
                   style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
-                Text("Blue T-Shirt • Beige Chinos • White Sneakers", // Placeholder
-                  style: GoogleFonts.poppins(fontSize: 13, color: Colors.black54)),
+                Text(_todaysOutfitItems!.map((i) => i.articleType).join(' • '), 
+                  style: GoogleFonts.poppins(fontSize: 13, color: Colors.black54),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
               ],
             ),
           ),

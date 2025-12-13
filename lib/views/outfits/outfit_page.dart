@@ -22,51 +22,16 @@ class _OutfitPageState extends State<OutfitPage> {
   // Comprehensive options based on standard Fashion Datasets
   final Map<String, List<String>> _options = {
     'Usage': [
-      'Casual',
-      'Ethnic',
-      'Formal',
-      'Party',
-      'Smart Casual',
-      'Sports',
-      'Travel'
+      'Casual', 'Ethnic', 'Formal', 'Party', 'Smart Casual', 'Sports', 'Travel'
     ],
     'Season': [
-      'Fall',
-      'Spring',
-      'Summer',
-      'Winter',
-      'All Seasons' // Often useful to have a catch-all
+      'Fall', 'Spring', 'Summer', 'Winter', 'All Seasons' // Often useful to have a catch-all
     ],
     'ColorPreference': [
-      'Beige',
-      'Black',
-      'Blue',
-      'Brown',
-      'Burgundy',
-      'Charcoal',
-      'Cream',
-      'Gold',
-      'Green',
-      'Grey',
-      'Khaki',
-      'Lavender',
-      'Magenta',
-      'Maroon',
-      'Multi',
-      'Mustard',
-      'Navy Blue',
-      'Olive',
-      'Orange',
-      'Peach',
-      'Pink',
-      'Purple',
-      'Red',
-      'Silver',
-      'Tan',
-      'Teal',
-      'Turquoise',
-      'White',
-      'Yellow'
+      'Beige', 'Black', 'Blue', 'Brown', 'Burgundy', 'Charcoal', 'Cream', 'Gold', 
+      'Green', 'Grey', 'Khaki', 'Lavender', 'Magenta', 'Maroon', 'Multi', 'Mustard', 
+      'Navy Blue', 'Olive', 'Orange', 'Peach', 'Pink', 'Purple', 'Red', 'Silver', 
+      'Tan', 'Teal', 'Turquoise', 'White', 'Yellow'
     ],
   };
 
@@ -81,7 +46,7 @@ class _OutfitPageState extends State<OutfitPage> {
   bool _useAnchorItem = false;
   ClothingItem? _selectedAnchorItem;
 
-  // Slot State (Top and Bottom are mandatory)
+  // Slot State (Default: Top + Bottom + Footwear)
   final List<String> _requiredSlots = ['Top', 'Bottom', 'Footwear'];
 
   @override
@@ -121,6 +86,55 @@ class _OutfitPageState extends State<OutfitPage> {
     _controller.dispose();
     _closetController.dispose();
     super.dispose();
+  }
+
+  // ✅ NEW: Logic to handle Separates vs One-Piece exclusivity
+  void _toggleSlot(String slot, bool isSelected) {
+    setState(() {
+      // 1. If user clicks a "One-Piece" item (Dress, Jumpsuit, Set)
+      if (['Dress', 'Jumpsuit', 'Set'].contains(slot)) {
+        if (isSelected) {
+          // Uncheck conflicting items
+          _requiredSlots.remove('Top');
+          _requiredSlots.remove('Bottom');
+          _requiredSlots.remove('Dress');
+          _requiredSlots.remove('Jumpsuit');
+          _requiredSlots.remove('Set');
+          
+          // Select the one clicked
+          _requiredSlots.add(slot);
+        } else {
+          _requiredSlots.remove(slot);
+          // Optional: fallback to Top/Bottom if nothing left? 
+          // For now, let's leave it so user can decide.
+        }
+      } 
+      // 2. If user clicks a "Separate" item (Top, Bottom)
+      else if (['Top', 'Bottom'].contains(slot)) {
+        if (isSelected) {
+          // Uncheck One-Piece items
+          _requiredSlots.remove('Dress');
+          _requiredSlots.remove('Jumpsuit');
+          _requiredSlots.remove('Set');
+          
+          // Force BOTH Top and Bottom to be checked
+          if (!_requiredSlots.contains('Top')) _requiredSlots.add('Top');
+          if (!_requiredSlots.contains('Bottom')) _requiredSlots.add('Bottom');
+        } else {
+          // If unchecking one, uncheck both (since they go together)
+          _requiredSlots.remove('Top');
+          _requiredSlots.remove('Bottom');
+        }
+      } 
+      // 3. Add-ons (Outerwear, Footwear, Accessory) - Independent
+      else {
+        if (isSelected) {
+          _requiredSlots.add(slot);
+        } else {
+          _requiredSlots.remove(slot);
+        }
+      }
+    });
   }
 
   @override
@@ -208,9 +222,10 @@ class _OutfitPageState extends State<OutfitPage> {
     );
   }
 
-  // ✅ Updated: Force Top and Bottom to be selected and disabled
   Widget _buildSlotRequirements() {
-    List<String> allSlots = ['Top', 'Bottom', 'Outerwear', 'Footwear', 'Accessory'];
+    // ✅ Updated List to include One-Piece items
+    List<String> allSlots = ['Top', 'Bottom', 'Dress', 'Jumpsuit', 'Set', 'Outerwear', 'Footwear', 'Accessory'];
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -218,44 +233,18 @@ class _OutfitPageState extends State<OutfitPage> {
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
-          children: allSlots.map((slot) {
-            // Is this a mandatory field?
-            final bool isMandatory = slot == 'Top' || slot == 'Bottom';
-            final bool isSelected = _requiredSlots.contains(slot);
-
-            return FilterChip(
-              label: Text(slot),
-              // Mandatory items are always selected
-              selected: isMandatory ? true : isSelected,
-              // Mandatory items cannot be unselected (onSelected is null disables interactivity)
-              onSelected: isMandatory 
-                  ? null 
-                  : (selected) {
-                      setState(() {
-                        if (selected) {
-                          _requiredSlots.add(slot);
-                        } else {
-                          _requiredSlots.remove(slot);
-                        }
-                      });
-                    },
-              // Visual styling for disabled/mandatory chips
-              selectedColor: isMandatory 
-                  ? Colors.grey.shade400 // Grey out mandatory to show they are fixed
-                  : AppConstants.primaryAccent.withOpacity(0.8),
-              backgroundColor: Colors.white,
-              disabledColor: Colors.grey.shade300, // Ensure disabled look is distinct
-              labelStyle: GoogleFonts.poppins(
-                color: (isMandatory || isSelected) ? Colors.white : Colors.black87,
-                fontSize: 13,
-                fontWeight: isMandatory ? FontWeight.w600 : FontWeight.normal,
-              ),
-              // Add a lock icon for mandatory items for better UX
-              avatar: isMandatory 
-                  ? const Icon(Icons.lock, size: 14, color: Colors.white) 
-                  : null,
-            );
-          }).toList(),
+          children: allSlots.map((slot) => FilterChip(
+            label: Text(slot),
+            selected: _requiredSlots.contains(slot),
+            // ✅ Use the new toggle logic
+            onSelected: (selected) => _toggleSlot(slot, selected),
+            selectedColor: AppConstants.primaryAccent.withOpacity(0.8),
+            backgroundColor: Colors.white,
+            labelStyle: GoogleFonts.poppins(
+              color: _requiredSlots.contains(slot) ? Colors.white : Colors.black87,
+              fontSize: 13,
+            ),
+          )).toList(),
         ),
       ],
     );
@@ -323,26 +312,14 @@ class _OutfitPageState extends State<OutfitPage> {
                             boxShadow: [AppConstants.cardShadow],
                           ),
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Expanded(
                                 child: ClipRRect(
                                   borderRadius: const BorderRadius.vertical(top: Radius.circular(9)),
-                                  child: item.imageUrl.isNotEmpty
-                                    ? Image.network(item.imageUrl, fit: BoxFit.cover)
-                                    : const Icon(Icons.image),
+                                  child: item.imageUrl.isNotEmpty ? Image.network(item.imageUrl, fit: BoxFit.cover) : const Icon(Icons.image),
                                 ),
                               ),
-                              Padding(
-                                padding: const EdgeInsets.all(4.0),
-                                child: Text(
-                                  item.subCategory, // Display subCategory (e.g. Jeans)
-                                  style: GoogleFonts.poppins(fontSize: 10),
-                                  textAlign: TextAlign.center,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
+                              Padding(padding: const EdgeInsets.all(4.0), child: Text(item.subCategory, style: GoogleFonts.poppins(fontSize: 10), maxLines: 1, overflow: TextOverflow.ellipsis)),
                             ],
                           ),
                         ),

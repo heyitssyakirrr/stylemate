@@ -18,21 +18,17 @@ class _ClosetPageState extends State<ClosetPage> {
   String _selectedFilter = 'All Items';
   String _searchQuery = '';
   
-  // UPDATED: Filters matching your SubCategory options
+  // ✅ UPDATED: Filters matching your SubCategory options
   final List<String> _filters = [
     'All Items',
     'Topwear',
     'Bottomwear',
-    'Shoes',
-    'Bags',
-    'Jewellery',
-    'Accessories',
     'Dress',
-    'Innerwear',
-    'Headwear',
-    'Eyewear',
-    'Watches',
-    'Wallets'
+    'Jumpsuit',
+    'Set',
+    'Outerwear',
+    'Footwear',
+    'Accessory'
   ];
   
   @override

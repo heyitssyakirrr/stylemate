@@ -10,11 +10,11 @@ class OutfitController extends ChangeNotifier {
   bool isLoading = false;
 
   Future<void> generateOutfit({
-    String? usage,   // ✅ Changed to Optional
-    String? season,  // ✅ Changed to Optional
-    String? color,   // ✅ Changed to Optional
+    String? usage,   // ✅ Optional
+    String? season,  // ✅ Optional
+    String? color,   // ✅ Optional
     String? anchorItemId,
-    required List<String> slots, // e.g. ["Top", "Bottom", "Outerwear"]
+    required List<String> slots, // e.g. ["Top", "Bottom", "Outerwear"] or ["Dress", "Footwear"]
   }) async {
     try {
       isLoading = true; notifyListeners();
@@ -62,7 +62,6 @@ class OutfitController extends ChangeNotifier {
     if (currentOutfit == null) return;
     
     // We iterate through items and update them.
-    // In a real scenario, you might batch this or call a specific RPC function.
     for (var item in currentOutfit!.items) {
       try {
         await _supabase.from('clothing_items').update({
