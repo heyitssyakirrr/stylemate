@@ -1,4 +1,4 @@
-// lib/views/outfit/outfit_page.dart
+// lib/views/outfits/outfit_page.dart
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -17,15 +17,14 @@ class OutfitPage extends StatefulWidget {
 
 class _OutfitPageState extends State<OutfitPage> {
   final OutfitController _controller = OutfitController();
-  final ClosetController _closetController = ClosetController(); // Needed for Anchor Items
+  final ClosetController _closetController = ClosetController();
 
-  // Comprehensive options based on standard Fashion Datasets
   final Map<String, List<String>> _options = {
     'Usage': [
       'Casual', 'Ethnic', 'Formal', 'Party', 'Smart Casual', 'Sports', 'Travel'
     ],
     'Season': [
-      'Fall', 'Spring', 'Summer', 'Winter', 'All Seasons' // Often useful to have a catch-all
+      'Fall', 'Spring', 'Summer', 'Winter', 'All Seasons'
     ],
     'ColorPreference': [
       'Beige', 'Black', 'Blue', 'Brown', 'Burgundy', 'Charcoal', 'Cream', 'Gold', 
@@ -35,38 +34,39 @@ class _OutfitPageState extends State<OutfitPage> {
     ],
   };
 
-  // Local state
   final Map<String, String?> _criteria = {
     'Usage': null,
     'Season': null,
     'ColorPreference': null,
   };
 
-  // Anchor Item State
+  // ✅ CHANGED: Now supports multiple selected items
   bool _useAnchorItem = false;
-  ClothingItem? _selectedAnchorItem;
+  List<ClothingItem> _selectedAnchorItems = [];
 
-  // Slot State (Default: Top + Bottom + Footwear)
   final List<String> _requiredSlots = ['Top', 'Bottom', 'Footwear'];
 
   @override
   void initState() {
     super.initState();
-    _closetController.fetchItems(); // Ensure we have items for the anchor list
+    _closetController.fetchItems();
   }
 
   void _generateOutfit() async {
-    // 1. Generate
-    // ✅ FIX: Removed strict defaults. Passes null if not selected.
+    // ✅ Extract IDs from the list
+    List<String>? anchorIds;
+    if (_useAnchorItem && _selectedAnchorItems.isNotEmpty) {
+      anchorIds = _selectedAnchorItems.map((e) => e.id).toList();
+    }
+
     await _controller.generateOutfit(
       usage: _criteria['Usage'], 
       season: _criteria['Season'],
       color: _criteria['ColorPreference'],
-      anchorItemId: _useAnchorItem ? _selectedAnchorItem?.id : null,
+      anchorItemIds: anchorIds, // ✅ Passing List
       slots: _requiredSlots,
     );
 
-    // 2. Navigate
     if (mounted && _controller.currentOutfit != null) {
       Navigator.push(
         context,
@@ -88,51 +88,55 @@ class _OutfitPageState extends State<OutfitPage> {
     super.dispose();
   }
 
-  // ✅ NEW: Logic to handle Separates vs One-Piece exclusivity
   void _toggleSlot(String slot, bool isSelected) {
     setState(() {
-      // 1. If user clicks a "One-Piece" item (Dress, Jumpsuit, Set)
       if (['Dress', 'Jumpsuit', 'Set'].contains(slot)) {
         if (isSelected) {
-          // Uncheck conflicting items
           _requiredSlots.remove('Top');
           _requiredSlots.remove('Bottom');
           _requiredSlots.remove('Dress');
           _requiredSlots.remove('Jumpsuit');
           _requiredSlots.remove('Set');
-          
-          // Select the one clicked
           _requiredSlots.add(slot);
         } else {
           _requiredSlots.remove(slot);
-          // Optional: fallback to Top/Bottom if nothing left? 
-          // For now, let's leave it so user can decide.
         }
       } 
-      // 2. If user clicks a "Separate" item (Top, Bottom)
       else if (['Top', 'Bottom'].contains(slot)) {
         if (isSelected) {
-          // Uncheck One-Piece items
           _requiredSlots.remove('Dress');
           _requiredSlots.remove('Jumpsuit');
           _requiredSlots.remove('Set');
-          
-          // Force BOTH Top and Bottom to be checked
           if (!_requiredSlots.contains('Top')) _requiredSlots.add('Top');
           if (!_requiredSlots.contains('Bottom')) _requiredSlots.add('Bottom');
         } else {
-          // If unchecking one, uncheck both (since they go together)
           _requiredSlots.remove('Top');
           _requiredSlots.remove('Bottom');
         }
       } 
-      // 3. Add-ons (Outerwear, Footwear, Accessory) - Independent
       else {
         if (isSelected) {
           _requiredSlots.add(slot);
         } else {
           _requiredSlots.remove(slot);
         }
+      }
+    });
+  }
+
+  // ✅ NEW: Handle multi-selection with category exclusivity
+  void _onAnchorTap(ClothingItem item) {
+    setState(() {
+      final isAlreadySelected = _selectedAnchorItems.any((i) => i.id == item.id);
+
+      if (isAlreadySelected) {
+        // Deselect if already picked
+        _selectedAnchorItems.removeWhere((i) => i.id == item.id);
+      } else {
+        // Check if we already have an item of this category
+        // e.g. "Topwear", "Bottomwear"
+        _selectedAnchorItems.removeWhere((i) => i.subCategory == item.subCategory);
+        _selectedAnchorItems.add(item);
       }
     });
   }
@@ -156,24 +160,19 @@ class _OutfitPageState extends State<OutfitPage> {
             Text("Define Your Look",
                 style: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
-            // Updated text to reflect optional nature
             Text("Set constraints or leave empty for AI selection.",
                 style: GoogleFonts.poppins(color: Colors.black54)),
             const SizedBox(height: 32),
 
-            // 1. Constraint Form
             _buildFormCard(),
             const SizedBox(height: 32),
 
-            // 2. Slot Requirements
             _buildSlotRequirements(),
             const SizedBox(height: 32),
 
-            // 3. Anchor Item Selection
             _buildAnchorSelection(),
             const SizedBox(height: 40),
 
-            // 4. Generate Action
             _buildGenerateButton(),
           ],
         ),
@@ -209,8 +208,8 @@ class _OutfitPageState extends State<OutfitPage> {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
       value: _criteria[key],
-      hint: const Text("Any (Optional)"), // ✅ Clearer hint
-      isExpanded: true, // Prevents overflow for long color names
+      hint: const Text("Any (Optional)"),
+      isExpanded: true,
       items: options
           .map((item) => DropdownMenuItem(value: item, child: Text(item)))
           .toList(),
@@ -223,7 +222,6 @@ class _OutfitPageState extends State<OutfitPage> {
   }
 
   Widget _buildSlotRequirements() {
-    // ✅ Updated List to include One-Piece items
     List<String> allSlots = ['Top', 'Bottom', 'Dress', 'Jumpsuit', 'Set', 'Outerwear', 'Footwear', 'Accessory'];
     
     return Column(
@@ -236,7 +234,6 @@ class _OutfitPageState extends State<OutfitPage> {
           children: allSlots.map((slot) => FilterChip(
             label: Text(slot),
             selected: _requiredSlots.contains(slot),
-            // ✅ Use the new toggle logic
             onSelected: (selected) => _toggleSlot(slot, selected),
             selectedColor: AppConstants.primaryAccent.withOpacity(0.8),
             backgroundColor: Colors.white,
@@ -257,13 +254,13 @@ class _OutfitPageState extends State<OutfitPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text("Start with an Anchor Item?", style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+            Text("Select Anchor Items", style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
             Switch(
               value: _useAnchorItem, 
               onChanged: (val) {
                 setState(() {
                   _useAnchorItem = val;
-                  if (!val) _selectedAnchorItem = null;
+                  if (!val) _selectedAnchorItems.clear(); // Clear if toggled off
                 });
               },
               activeColor: AppConstants.primaryAccent,
@@ -272,7 +269,7 @@ class _OutfitPageState extends State<OutfitPage> {
         ),
         if (_useAnchorItem)
           ListenableBuilder(
-            listenable: _closetController, // Listen to closet loading/changes
+            listenable: _closetController,
             builder: (context, child) {
               if (_closetController.isLoading) {
                 return const Padding(
@@ -285,48 +282,70 @@ class _OutfitPageState extends State<OutfitPage> {
                 return const Text("No items in closet to select.");
               }
 
-              return SizedBox(
-                height: 130,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _closetController.items.length,
-                  itemBuilder: (context, index) {
-                    final item = _closetController.items[index];
-                    final isSelected = _selectedAnchorItem?.id == item.id;
-                    
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() => _selectedAnchorItem = isSelected ? null : item);
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.only(right: 12.0, bottom: 8.0, top: 8.0),
-                        child: Container(
-                          width: 90,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isSelected ? AppConstants.primaryAccent : Colors.transparent, 
-                              width: 3
-                            ),
-                            boxShadow: [AppConstants.cardShadow],
-                          ),
-                          child: Column(
-                            children: [
-                              Expanded(
-                                child: ClipRRect(
-                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(9)),
-                                  child: item.imageUrl.isNotEmpty ? Image.network(item.imageUrl, fit: BoxFit.cover) : const Icon(Icons.image),
-                                ),
-                              ),
-                              Padding(padding: const EdgeInsets.all(4.0), child: Text(item.subCategory, style: GoogleFonts.poppins(fontSize: 10), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                            ],
-                          ),
-                        ),
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_selectedAnchorItems.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: Text(
+                        "Selected: ${_selectedAnchorItems.map((e) => e.subCategory).join(", ")}",
+                        style: GoogleFonts.poppins(fontSize: 12, color: Colors.green),
                       ),
-                    );
-                  },
-                ),
+                    ),
+                  SizedBox(
+                    height: 130,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _closetController.items.length,
+                      itemBuilder: (context, index) {
+                        final item = _closetController.items[index];
+                        // Check if this specific item ID is in the selected list
+                        final isSelected = _selectedAnchorItems.any((i) => i.id == item.id);
+                        
+                        return GestureDetector(
+                          onTap: () => _onAnchorTap(item), // ✅ Use new logic
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 12.0, bottom: 8.0, top: 8.0),
+                            child: Container(
+                              width: 90,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: isSelected ? AppConstants.primaryAccent : Colors.transparent, 
+                                  width: 3
+                                ),
+                                boxShadow: [AppConstants.cardShadow],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Expanded(
+                                    child: ClipRRect(
+                                      borderRadius: const BorderRadius.vertical(top: Radius.circular(9)),
+                                      child: item.imageUrl.isNotEmpty ? Image.network(item.imageUrl, fit: BoxFit.cover) : const Icon(Icons.image),
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.all(4.0), 
+                                    child: Text(
+                                      item.subCategory, 
+                                      style: GoogleFonts.poppins(fontSize: 10), 
+                                      textAlign: TextAlign.center,
+                                      maxLines: 1, 
+                                      overflow: TextOverflow.ellipsis
+                                    )
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               );
             },
           )
@@ -335,7 +354,8 @@ class _OutfitPageState extends State<OutfitPage> {
   }
 
   Widget _buildGenerateButton() {
-    bool canGenerate = !_useAnchorItem || (_useAnchorItem && _selectedAnchorItem != null);
+    // Generate is valid if anchor toggle is OFF, OR toggle is ON and at least 1 item selected
+    bool canGenerate = !_useAnchorItem || (_useAnchorItem && _selectedAnchorItems.isNotEmpty);
 
     return SizedBox(
       width: double.infinity,

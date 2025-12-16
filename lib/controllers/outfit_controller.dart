@@ -10,25 +10,31 @@ class OutfitController extends ChangeNotifier {
   bool isLoading = false;
 
   Future<void> generateOutfit({
-    String? usage,   // ✅ Optional
-    String? season,  // ✅ Optional
-    String? color,   // ✅ Optional
-    String? anchorItemId,
-    required List<String> slots, // e.g. ["Top", "Bottom", "Outerwear"] or ["Dress", "Footwear"]
+    String? usage,
+    String? season,
+    String? color,
+    List<String>? anchorItemIds, // ✅ CHANGED: Accepts a list of IDs
+    required List<String> slots,
   }) async {
     try {
       isLoading = true; notifyListeners();
 
-      // Ensure user is logged in
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) throw Exception("User not logged in");
 
-      // ✅ LOGIC FIX: Check if null. If null, send empty list [] (which means 'Any').
       final usageFilter = usage != null ? [usage] : [];
       final seasonFilter = season != null ? [season] : [];
       final colorFilter = color != null ? [color] : [];
 
-      // Call the Supabase Edge Function (Python/TS backend)
+      // ✅ NEW: Prepare List of Integers
+      List<int> anchors = [];
+      if (anchorItemIds != null) {
+        anchors = anchorItemIds
+            .map((e) => int.tryParse(e))
+            .whereType<int>()
+            .toList();
+      }
+
       final res = await _supabase.functions.invoke(
         'outfit-recommender',
         body: {
@@ -38,15 +44,14 @@ class OutfitController extends ChangeNotifier {
             'season': seasonFilter,     
             'baseColour': colorFilter   
           },
-          'anchor_id': anchorItemId, // Specific Item ID (e.g. the Blue Jeans)
-          'required_slots': slots,   // e.g. ["Top", "Bottom"]
+          'anchor_ids': anchors, // ✅ SENDING PLURAL
+          'required_slots': slots,
         },
       );
 
       if (res.data != null) {
         currentOutfit = Outfit.fromJson(res.data);
       } else {
-        // Handle case where function returns null (no valid outfit found)
         currentOutfit = null;
       }
     } catch (e) {
@@ -57,11 +62,8 @@ class OutfitController extends ChangeNotifier {
     }
   }
 
-  // Mark as Worn Logic
   Future<void> markAsWorn() async {
     if (currentOutfit == null) return;
-    
-    // We iterate through items and update them.
     for (var item in currentOutfit!.items) {
       try {
         await _supabase.from('clothing_items').update({

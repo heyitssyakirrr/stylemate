@@ -23,7 +23,6 @@ class _HomeScreenState extends State<HomeScreen> {
   final AuthController _authController = AuthController();
   final WeatherController _weatherController = WeatherController();
   
-  // ✅ NEW: Controller specifically for the outfit grid scrollbar
   final ScrollController _outfitScrollController = ScrollController();
 
   int selectedIndex = 0;
@@ -71,7 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _weatherController.dispose();
-    _outfitScrollController.dispose(); // ✅ Dispose the scroll controller
+    _outfitScrollController.dispose(); 
     super.dispose();
   }
 
@@ -89,9 +88,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = _authController.currentUser;
-    final username = user?.email?.split('@')[0] ?? "User";
-
+    // We remove the static user fetch here and move it inside the StreamBuilder below
+    
     return Scaffold(
       backgroundColor: AppConstants.background,
       appBar: AppBar(
@@ -120,7 +118,8 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildWelcomeHeader(username),
+              // ✅ UPDATED: Wrapped in StreamBuilder to listen for live name changes
+              _buildLiveWelcomeHeader(),
               const SizedBox(height: 28),
 
               _buildQuickActionsGrid(),
@@ -143,24 +142,40 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildWelcomeHeader(String username) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text("Hi, $username 👋",
-          style: GoogleFonts.poppins(
-            fontSize: 30,
-            fontWeight: FontWeight.w700,
-            color: Colors.black87,
-          )),
-        const SizedBox(height: 4),
-        Text("Your style journey starts now.",
-          style: GoogleFonts.poppins(
-            fontSize: 16,
-            color: Colors.black54,
-            fontWeight: FontWeight.w500,
-          )),
-      ],
+  // ✅ NEW WIDGET: Listens to Auth Changes
+  Widget _buildLiveWelcomeHeader() {
+    return StreamBuilder<AuthState>(
+      stream: Supabase.instance.client.auth.onAuthStateChange,
+      builder: (context, snapshot) {
+        // Get the latest user object from the snapshot or fallback to current
+        final User? user = snapshot.data?.session?.user ?? _authController.currentUser;
+        
+        // 1. Try to get the real Name from metadata
+        // 2. Fallback to Email nickname
+        // 3. Fallback to "User"
+        final String displayName = user?.userMetadata?['full_name'] ?? 
+                                   user?.email?.split('@')[0] ?? 
+                                   "User";
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Hi, $displayName 👋",
+              style: GoogleFonts.poppins(
+                fontSize: 30,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+              )),
+            const SizedBox(height: 4),
+            Text("Your style journey starts now.",
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                color: Colors.black54,
+                fontWeight: FontWeight.w500,
+              )),
+          ],
+        );
+      }
     );
   }
 
@@ -371,7 +386,6 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    // FEATURED DISPLAY
     final int itemCount = _todaysOutfitItems!.length;
     final double aspectRatio = itemCount > 2 ? 1.3 : 0.9; 
 
@@ -397,12 +411,11 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.all(12),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              // ✅ FIXED: Added controller to Scrollbar and GridView to fix the error
               child: Scrollbar(
                 thumbVisibility: true,
-                controller: _outfitScrollController, // Linked here
+                controller: _outfitScrollController, 
                 child: GridView.builder(
-                  controller: _outfitScrollController, // Linked here
+                  controller: _outfitScrollController, 
                   padding: const EdgeInsets.only(right: 6), 
                   physics: const AlwaysScrollableScrollPhysics(),
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
