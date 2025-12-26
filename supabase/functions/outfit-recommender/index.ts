@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 interface ClothingItem {
   id: number;
@@ -13,7 +13,7 @@ interface ClothingItem {
 
 interface RequestPayload {
   user_id: string;
-  anchor_ids?: number[]; // ✅ CHANGED: Accepts multiple IDs now
+  anchor_ids?: number[];
   constraints: {
     usage?: string[];
     season?: string[];
@@ -27,7 +27,7 @@ interface OutfitRecommendation {
   items: ClothingItem[];
 }
 
-// ... (Helper functions: parseEmbedding, cosineSimilarity, calculateHarmony remain the same) ...
+// Helper: Parse embedding string/array
 function parseEmbedding(embedding: string | number[] | null | undefined): number[] {
   if (!embedding) return [];
   if (Array.isArray(embedding)) return embedding;
@@ -37,6 +37,7 @@ function parseEmbedding(embedding: string | number[] | null | undefined): number
   return [];
 }
 
+// Helper: Math for Visual Similarity
 function cosineSimilarity(vecA: number[], vecB: number[]): number {
   if (!vecA || !vecB || vecA.length === 0 || vecB.length === 0 || vecA.length !== vecB.length) return 0;
   let dotProduct = 0; let normA = 0; let normB = 0;
@@ -49,10 +50,11 @@ function cosineSimilarity(vecA: number[], vecB: number[]): number {
   return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
+// Helper: Calculate Total Outfit Harmony
 function calculateHarmony(items: ClothingItem[]): number {
   let score = 0;
   let count = 0;
-  // Calculate average similarity between all pairs in the outfit
+  // Compare every item against every other item (Visual Consistency)
   for (let i = 0; i < items.length; i++) {
     for (let j = i + 1; j < items.length; j++) {
       const vecA = parseEmbedding(items[i].embedding);
@@ -64,6 +66,49 @@ function calculateHarmony(items: ClothingItem[]): number {
   return count > 0 ? score / count : 0;
 }
 
+// Helper: Internal Logic Checker (Fixes "Puffer + Shorts" issue)
+function areItemsCompatible(baseItems: ClothingItem[], newItem: ClothingItem, constraints: any): boolean {
+  // 1. Season Logic
+  // If user DID NOT specify a season, we must ensure the outfit has internal consistency.
+  // We don't want a 'Winter' jacket with 'Summer' shorts.
+  const userHasSeasonFilter = constraints.season && constraints.season.length > 0;
+  
+  if (!userHasSeasonFilter) {
+    const newItemSeason = newItem.season.toLowerCase();
+    
+    // Check against existing items
+    for (const item of baseItems) {
+      const currentSeason = item.season.toLowerCase();
+      
+      // Allow 'All Seasons' to match anything
+      if (newItemSeason === 'all seasons' || currentSeason === 'all seasons') continue;
+      if (newItemSeason === '' || currentSeason === '') continue;
+
+      // Conflict: Summer vs Winter
+      if ((newItemSeason === 'summer' && currentSeason === 'winter') ||
+          (newItemSeason === 'winter' && currentSeason === 'summer')) {
+        return false; // Incompatible
+      }
+    }
+  }
+
+  // 2. Usage Logic
+  // If user DID NOT specify usage, prevent 'Sports' items mixing with 'Formal'
+  const userHasUsageFilter = constraints.usage && constraints.usage.length > 0;
+  
+  if (!userHasUsageFilter) {
+    const newItemUsage = newItem.usage.toLowerCase();
+    
+    for (const item of baseItems) {
+      const currentUsage = item.usage.toLowerCase();
+      if (newItemUsage === 'sports' && currentUsage === 'formal') return false;
+      if (newItemUsage === 'formal' && currentUsage === 'sports') return false;
+    }
+  }
+
+  return true;
+}
+
 Deno.serve(async (req: Request) => {
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
@@ -73,7 +118,6 @@ Deno.serve(async (req: Request) => {
 
   const payload = await req.json() as RequestPayload;
   
-  // Handle both single 'anchor_id' (legacy) and 'anchor_ids' (new)
   const incomingAnchorId = (payload as any).anchor_id;
   let anchorIds: number[] = payload.anchor_ids ?? [];
   if (incomingAnchorId && !anchorIds.includes(incomingAnchorId)) {
@@ -96,144 +140,131 @@ Deno.serve(async (req: Request) => {
     if (error) throw error;
     
     let closet = closetData as ClothingItem[];
-
-    // --- 1. Identify Anchor Items ---
     const anchorItems = closet.filter(i => anchorIds.includes(i.id));
 
-    // --- 2. Helper to filter candidates ---
-    const filterItems = (items: ClothingItem[], strictSeason: boolean, strictColor: boolean) => {
-        return items.filter((item) => {
-            // ✅ CRITICAL FIX: If item is an anchor, ALWAYS include it regardless of filters
-            if (anchorIds.includes(item.id)) return true;
+    // --- SMART FILTERING ---
+    // Instead of filtering strictly and failing, we retrieve pools based on priority.
+    
+    const getCandidatesForCategory = (category: string) => {
+        // 1. Force Anchor
+        const anchor = anchorItems.find(i => i.sub_category === category);
+        if (anchor) return [anchor];
 
-            // Usage Check
+        // 2. Strict Match (User Constraints)
+        const strictMatch = closet.filter(item => {
+            if (item.sub_category !== category) return false;
+            
             const matchUsage = usage.length === 0 || usage.some(u => u.toLowerCase() === item.usage.toLowerCase());
+            const matchSeason = season.length === 0 || season.some(s => s.toLowerCase() === item.season.toLowerCase());
+            const matchColor = baseColour.length === 0 || baseColour.some(c => c.toLowerCase() === item.base_colour.toLowerCase());
             
-            // Season Check
-            const matchSeason = !strictSeason || 
-                                season.length === 0 || 
-                                season.includes('All Seasons') || 
-                                season.some(s => s.toLowerCase() === item.season.toLowerCase());
-            
-            // Color Check (Allow neutrals for non-strict)
-            const isNeutral = ['white', 'black', 'grey', 'silver', 'gold', 'beige', 'navy'].includes(item.base_colour.toLowerCase());
-            
-            const matchColor = baseColour.length === 0 || 
-                               baseColour.some(c => c.toLowerCase() === item.base_colour.toLowerCase()) || 
-                               (!strictColor && isNeutral);
-
-            const hasEmbedding = item.embedding !== null;
-            return matchUsage && matchSeason && matchColor && hasEmbedding;
+            return matchUsage && matchSeason && matchColor;
         });
-    };
 
-    // --- 3. Get Candidates ---
-    // Start with strict filtering for core items
-    const coreCandidates = filterItems(closet, true, true);
+        if (strictMatch.length > 0) return strictMatch;
 
-    // --- 4. Define Pools with Anchor Enforcement ---
-    const getPool = (category: string, candidates: ClothingItem[]) => {
-        // Check if we have an anchor for this category
-        const anchorForCat = anchorItems.find(i => i.sub_category === category);
-        
-        // If yes, the pool is ONLY that anchor item
-        if (anchorForCat) return [anchorForCat];
+        // 3. Fallback: Relax Season (e.g. No 'Spring' items? Check 'All Seasons')
+        const seasonFallback = closet.filter(item => {
+            if (item.sub_category !== category) return false;
+            
+            const matchUsage = usage.length === 0 || usage.some(u => u.toLowerCase() === item.usage.toLowerCase());
+            // Allow 'All Seasons' or items with empty season
+            const matchSeason = item.season.toLowerCase() === 'all seasons' || item.season === ''; 
+            const matchColor = baseColour.length === 0 || baseColour.some(c => c.toLowerCase() === item.base_colour.toLowerCase());
+            
+            return matchUsage && matchSeason && matchColor;
+        });
 
-        // Otherwise, return filtered candidates for that category
-        return candidates.filter(i => i.sub_category === category);
-    };
+        if (seasonFallback.length > 0) return seasonFallback;
 
-    let tops = getPool('Topwear', coreCandidates);
-    let bottoms = getPool('Bottomwear', coreCandidates);
-    let dresses = getPool('Dress', coreCandidates);
-    let jumpsuits = getPool('Jumpsuit', coreCandidates);
-    let sets = getPool('Set', coreCandidates);
+        // 4. Fallback: Relax Usage (e.g. No 'Party' shoes? Check Neutral items)
+        const usageFallback = closet.filter(item => {
+            if (item.sub_category !== category) return false;
+            // Relax Usage completely if we are desperate
+            const matchSeason = season.length === 0 || season.some(s => s.toLowerCase() === item.season.toLowerCase()) || item.season.toLowerCase() === 'all seasons';
+            const matchColor = baseColour.length === 0 || baseColour.some(c => c.toLowerCase() === item.base_colour.toLowerCase());
+            
+            return matchSeason && matchColor;
+        });
 
-    // --- 5. Add-on Pools (Smart Fallback Logic) ---
-    const getBestAddonPool = (category: string) => {
-        // A. Is there an anchor?
-        const anchorForCat = anchorItems.find(i => i.sub_category === category);
-        if (anchorForCat) return [anchorForCat];
+        if (usageFallback.length > 0) return usageFallback;
 
-        // B. Strict Season + Strict Color
-        let pool = filterItems(closet, true, true).filter(i => i.sub_category === category);
-        
-        // C. Fallback: Strict Season + Relaxed Color (Neutrals)
-        if (pool.length === 0) {
-             pool = filterItems(closet, true, false).filter(i => i.sub_category === category);
+        // 5. Ultimate Fallback (Just give me something from that category!)
+        // Only do this for 'Required' slots.
+        if (slots.includes(category) || category === 'Top' || category === 'Bottom') {
+             return closet.filter(i => i.sub_category === category);
         }
 
-        // D. Fallback: Relaxed Season (Any item in category)
-        if (pool.length === 0) {
-             pool = filterItems(closet, false, false).filter(i => i.sub_category === category);
-        }
-        return pool;
+        return [];
     };
 
-    const outerwear = slots.includes('Outerwear') ? getBestAddonPool('Outerwear') : [];
-    const footwear = slots.includes('Footwear') ? getBestAddonPool('Footwear') : [];
-    const accessories = slots.includes('Accessory') ? getBestAddonPool('Accessory') : [];
+    // Get pools
+    const tops = getCandidatesForCategory('Topwear');
+    const bottoms = getCandidatesForCategory('Bottomwear');
+    const dresses = getCandidatesForCategory('Dress');
+    const jumpsuits = getCandidatesForCategory('Jumpsuit');
+    const sets = getCandidatesForCategory('Set');
+    
+    // Add-ons
+    const outerwear = slots.includes('Outerwear') ? getCandidatesForCategory('Outerwear') : [];
+    const footwear = slots.includes('Footwear') ? getCandidatesForCategory('Footwear') : [];
+    const accessories = slots.includes('Accessory') ? getCandidatesForCategory('Accessory') : [];
 
-    // --- 6. Optimization: Slice large pools (But never slice an anchor) ---
-    const safeSlice = (arr: ClothingItem[], limit: number) => {
-        if (arr.length <= limit) return arr;
-        // If array contains anchors (though getPool returns size 1 usually), keep them
+    // Safety Slice (randomize before slicing to ensure variety on regenerate)
+    const shuffle = (array: ClothingItem[]) => array.sort(() => Math.random() - 0.5);
+    
+    // Keep anchors, shuffle rest
+    const safePool = (arr: ClothingItem[], limit: number) => {
         const anchors = arr.filter(i => anchorIds.includes(i.id));
-        const others = arr.filter(i => !anchorIds.includes(i.id)).slice(0, limit);
+        const others = shuffle(arr.filter(i => !anchorIds.includes(i.id))).slice(0, limit);
         return [...anchors, ...others];
     };
 
-    const safeTops = safeSlice(tops, 15);
-    const safeBottoms = safeSlice(bottoms, 15);
-    const safeDresses = safeSlice(dresses, 15);
-    const safeJumpsuits = safeSlice(jumpsuits, 15);
-    const safeSets = safeSlice(sets, 15);
-    const safeOuter = safeSlice(outerwear, 5);
-    const safeFoot = safeSlice(footwear, 5);
-    const safeAcc = safeSlice(accessories, 5);
+    const safeTops = safePool(tops, 10);
+    const safeBottoms = safePool(bottoms, 10);
+    const safeDresses = safePool(dresses, 10);
+    const safeJumpsuits = safePool(jumpsuits, 10);
+    const safeSets = safePool(sets, 10);
+    const safeOuter = safePool(outerwear, 5);
+    const safeFoot = safePool(footwear, 5);
+    const safeAcc = safePool(accessories, 5);
 
-    // --- 7. Generate Base Outfits ---
+    // --- GENERATE OUTFITS ---
     let baseOutfits: ClothingItem[][] = [];
 
-    // Helper: Check if outfit contains ALL required anchors compatible with this base type
-    const containsRelevantAnchors = (outfit: ClothingItem[]) => {
-        // We only care about anchors that fit into the current "slots" being built
-        // e.g. If building a Dress outfit, we don't care if Top anchor is missing
-        return true; 
-    };
-
-    // One-Piece Logic
-    if (slots.includes('Dress')) {
+    // One-Piece
+    if (slots.includes('Dress') || anchorItems.some(i => i.sub_category === 'Dress')) {
         safeDresses.forEach(d => baseOutfits.push([d]));
     } 
-    else if (slots.includes('Jumpsuit')) {
+    else if (slots.includes('Jumpsuit') || anchorItems.some(i => i.sub_category === 'Jumpsuit')) {
         safeJumpsuits.forEach(j => baseOutfits.push([j]));
     }
-    else if (slots.includes('Set')) {
+    else if (slots.includes('Set') || anchorItems.some(i => i.sub_category === 'Set')) {
         safeSets.forEach(s => baseOutfits.push([s]));
     }
-    // Separates Logic
+    // Separates
     else if (slots.includes('Top') || slots.includes('Bottom')) {
-        // Special case: If user selected ONLY a Top anchor and no Bottom anchor (or vice versa),
-        // we must ensure we don't return empty list if one pool is empty.
-        
-        if (safeTops.length > 0 && safeBottoms.length > 0) {
-            for (const t of safeTops) {
-                for (const b of safeBottoms) {
+        for (const t of safeTops) {
+            for (const b of safeBottoms) {
+                // Internal Consistency Check
+                if (areItemsCompatible([t], b, constraints)) {
                     baseOutfits.push([t, b]);
                 }
             }
         }
     }
 
-    // --- 8. Layering Logic ---
+    // Add Layers with Consistency Checks
     const addLayer = (currentOutfits: ClothingItem[][], layerPool: ClothingItem[]) => {
         if (layerPool.length === 0) return currentOutfits;
         
         let newOutfits: ClothingItem[][] = [];
         for (const outfit of currentOutfits) {
             for (const item of layerPool) {
-                newOutfits.push([...outfit, item]);
+                // Only add if it makes sense (e.g. No Puffer with Shorts)
+                if (areItemsCompatible(outfit, item, constraints)) {
+                    newOutfits.push([...outfit, item]);
+                }
             }
         }
         return newOutfits.length > 0 ? newOutfits : currentOutfits;
@@ -241,60 +272,52 @@ Deno.serve(async (req: Request) => {
 
     if (outerwear.length > 0) baseOutfits = addLayer(baseOutfits, safeOuter);
     if (footwear.length > 0) baseOutfits = addLayer(baseOutfits, safeFoot);
-    
-    // For accessories, assume 1 accessory max for combinatorics to prevent timeouts
-    if (accessories.length > 0) {
-        const limitedAcc = safeAcc.slice(0, 3);
-        baseOutfits = addLayer(baseOutfits, limitedAcc);
-    }
+    if (accessories.length > 0) baseOutfits = addLayer(baseOutfits, safeAcc.slice(0, 3));
 
-    // --- 9. Final Validation: Must contain ALL requested anchors ---
-    // If user asked for specific Top + Specific Shoe, discard outfits that don't have both.
+    // Filter for Anchors
     const validOutfits = baseOutfits.filter(outfit => {
         const outfitIds = outfit.map(i => i.id);
-        // Check if every requested anchor ID is present in this outfit
-        // BUT only if that anchor's category is actually part of this outfit structure
-        // (This prevents filtering out a valid Dress outfit just because a Top anchor exists in the request)
-        
         return anchorIds.every(anchorId => {
             const anchor = anchorItems.find(i => i.id === anchorId);
-            if (!anchor) return true; // Should not happen
-            
-            // Is this anchor's category represented in the current outfit?
-            // e.g. If anchor is a Shoe, does this outfit have a Shoe slot?
-            // Simplest check: If we have an anchor, it MUST be in the outfit.
-            // If the algorithm decided to skip that category (e.g. no outerwear slot), then it's fine.
-            // BUT here we forced inclusion in steps 4 & 5. So if it's not there, it's wrong.
+            if (!anchor) return true;
             return outfitIds.includes(anchorId);
         });
     });
 
     const recommendations: OutfitRecommendation[] = [];
 
-    // --- 10. Calculate Harmony ---
+    // Calculate Scores
     for (const outfit of validOutfits) {
         const score = calculateHarmony(outfit);
         recommendations.push({ score, items: outfit });
     }
 
-    // --- 11. Sort & Return ---
+    // Sort by Score
     recommendations.sort((a, b) => b.score - a.score);
-    const topResults = recommendations.slice(0, 3);
+
+    // --- FIX 3: Random Selection from Top Results ---
+    // Instead of always taking index 0, we take the top 5 (which are all good)
+    // and pick one randomly. This fixes the "Regenerate" issue.
+    const topResults = recommendations.slice(0, 5); 
 
     if (topResults.length === 0) {
         return new Response(
             JSON.stringify({ 
                 items: [],
                 harmonyScore: 0,
-                suggestionLogic: `No valid outfits found including your selected items. Try fewer constraints.`,
+                suggestionLogic: `No outfits found. Try removing some filters.`,
                 alternatives: []
             }),
             { headers: { "Content-Type": "application/json" } }
         );
     }
 
-    const bestOutfit = topResults[0];
-    const alternatives: OutfitRecommendation[] = topResults.slice(1).map(r => ({
+    // Pick random from top 5 for variety
+    const randomIndex = Math.floor(Math.random() * topResults.length);
+    const bestOutfit = topResults[randomIndex];
+    
+    // Alternatives are the others from the top pool
+    const alternatives = topResults.filter((_, idx) => idx !== randomIndex).map(r => ({
         items: r.items, score: Math.round(r.score * 100)
     }));
 
@@ -302,7 +325,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({
         items: bestOutfit.items,
         harmonyScore: Math.round(bestOutfit.score * 100),
-        suggestionLogic: `Styled ${anchorItems.length > 0 ? 'around your selection' : 'for you'}.`,
+        suggestionLogic: `Styled based on ${season.join('/') || 'context'} and harmony.`,
         alternatives: alternatives.map(a => ({
             items: a.items, harmonyScore: a.score, suggestionLogic: "Alternative style."
         }))
