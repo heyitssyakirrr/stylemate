@@ -56,3 +56,26 @@ Built with **Flutter** and **Supabase**, it leverages on-device Machine Learning
    ```bash
    git clone [https://github.com/heyitssyakirrr/stylemate.git](https://github.com/heyitssyakirrr/stylemate.git)
    cd stylemate
+
+2. Install Dependencies
+
+Bash
+
+flutter pub get
+
+3. Environment Setup
+
+Ensure you have the assets/ml_data/classifier_extractor.tflite model and label_maps.json in place.
+
+Configure your Supabase URL and Anon Key in lib/main.dart (or better, use environment variables).
+
+4. Run the App
+
+Bash
+
+flutter run
+
+🤝 Contributing
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+
