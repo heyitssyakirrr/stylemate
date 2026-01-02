@@ -59,10 +59,10 @@ Built with **Flutter** and **Supabase**, it leverages on-device Machine Learning
 
 2. Install Dependencies
 
-```bash
+   ```bash
 
    flutter pub get
-```
+   ```
 3. Environment Setup
 
    Ensure you have the assets/ml_data/classifier_extractor.tflite model and label_maps.json in place.
@@ -75,7 +75,8 @@ Built with **Flutter** and **Supabase**, it leverages on-device Machine Learning
 
    flutter run
    ```
+   
 🤝 Contributing
-Contributions are welcome! Please feel free to submit a Pull Request.
+   Contributions are welcome! Please feel free to submit a Pull Request.
 
 
