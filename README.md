@@ -40,8 +40,11 @@ Built with **Flutter** and **Supabase**, it leverages on-device Machine Learning
 
 ## 📸 Screenshots
 
-| Home Screen | Virtual Closet | Outfit Results |
-|:---:|:---:|:---:|
+| Home Screen | AI Classification | AI-Genereted Outfit Results |
+|:<img width="800" height="1280" alt="image" src="https://github.com/user-attachments/assets/7495abf7-8e74-41c4-aa0d-102fd9e45a4d" />
+:|:<img width="800" height="1280" alt="image" src="https://github.com/user-attachments/assets/582b87d2-22cf-46dc-a324-78f5b9eb1dde" />
+:|:<img width="800" height="1280" alt="image" src="https://github.com/user-attachments/assets/719b5404-ec21-4044-9380-dc13b0e37ec9" />
+:|
 | | | |
 
 ## 📦 Getting Started
