@@ -6,7 +6,7 @@ Built with **Flutter** and **Supabase**, it leverages on-device Machine Learning
 
 ## 🚀 Key Features
 
-- **📱 Digital Closet**: Upload and organize your wardrobe. The app automatically classifies items and extracts visual features using a custom MobileNet-based TFLite model.
+- **📱 Digital Closet**: Upload and organize your wardrobe. The app automatically classifies items and extracts visual features using a custom ResNet-50-based TFLite model.
 - **✨ AI Outfit Recommender**: Generates outfit suggestions using **Cosine Similarity** on feature embeddings to ensure visual harmony.
 - **☁️ Weather Adaptive**: Fetches real-time local weather data (via Geolocator) to suggest season-appropriate looks (e.g., no winter jackets in summer).
 - **🎨 Smart Filtering**: Constraints-based styling engine that respects occasion (Usage), season, and color preferences.
