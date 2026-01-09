@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../utils/constants.dart';
 import '../../controllers/outfit_controller.dart';
 import '../../controllers/closet_controller.dart';
+import '../../controllers/weather_controller.dart'; // ✅ Import Weather Controller
 import '../../models/clothing_item.dart';
 import 'outfit_result_page.dart';
 
@@ -18,6 +19,7 @@ class OutfitPage extends StatefulWidget {
 class _OutfitPageState extends State<OutfitPage> {
   final OutfitController _controller = OutfitController();
   final ClosetController _closetController = ClosetController();
+  final WeatherController _weatherController = WeatherController(); // ✅ Initialize Weather Controller
 
   final Map<String, List<String>> _options = {
     'Usage': [
@@ -40,9 +42,8 @@ class _OutfitPageState extends State<OutfitPage> {
     'ColorPreference': null,
   };
 
-  // ✅ CHANGED: Now supports multiple selected items
   bool _useAnchorItem = false;
-  final List<ClothingItem> _selectedAnchorItems = [];
+  List<ClothingItem> _selectedAnchorItems = [];
 
   final List<String> _requiredSlots = ['Top', 'Bottom', 'Footwear'];
 
@@ -50,21 +51,25 @@ class _OutfitPageState extends State<OutfitPage> {
   void initState() {
     super.initState();
     _closetController.fetchItems();
+    _weatherController.fetchWeather(); // ✅ Fetch weather when page loads
   }
 
   void _generateOutfit() async {
-    // ✅ Extract IDs from the list
     List<String>? anchorIds;
     if (_useAnchorItem && _selectedAnchorItems.isNotEmpty) {
       anchorIds = _selectedAnchorItems.map((e) => e.id).toList();
     }
 
+    // ✅ Get Current Temperature
+    double? currentTemp = _weatherController.weather.value?.temperature;
+
     await _controller.generateOutfit(
       usage: _criteria['Usage'], 
       season: _criteria['Season'],
       color: _criteria['ColorPreference'],
-      anchorItemIds: anchorIds, // ✅ Passing List
+      anchorItemIds: anchorIds,
       slots: _requiredSlots,
+      temperature: currentTemp, // ✅ Pass to Controller
     );
 
     if (mounted && _controller.currentOutfit != null) {
@@ -85,6 +90,7 @@ class _OutfitPageState extends State<OutfitPage> {
   void dispose() {
     _controller.dispose();
     _closetController.dispose();
+    _weatherController.dispose();
     super.dispose();
   }
 
@@ -124,17 +130,13 @@ class _OutfitPageState extends State<OutfitPage> {
     });
   }
 
-  // ✅ NEW: Handle multi-selection with category exclusivity
   void _onAnchorTap(ClothingItem item) {
     setState(() {
       final isAlreadySelected = _selectedAnchorItems.any((i) => i.id == item.id);
 
       if (isAlreadySelected) {
-        // Deselect if already picked
         _selectedAnchorItems.removeWhere((i) => i.id == item.id);
       } else {
-        // Check if we already have an item of this category
-        // e.g. "Topwear", "Bottomwear"
         _selectedAnchorItems.removeWhere((i) => i.subCategory == item.subCategory);
         _selectedAnchorItems.add(item);
       }
@@ -260,7 +262,7 @@ class _OutfitPageState extends State<OutfitPage> {
               onChanged: (val) {
                 setState(() {
                   _useAnchorItem = val;
-                  if (!val) _selectedAnchorItems.clear(); // Clear if toggled off
+                  if (!val) _selectedAnchorItems.clear(); 
                 });
               },
               activeColor: AppConstants.primaryAccent,
@@ -300,11 +302,10 @@ class _OutfitPageState extends State<OutfitPage> {
                       itemCount: _closetController.items.length,
                       itemBuilder: (context, index) {
                         final item = _closetController.items[index];
-                        // Check if this specific item ID is in the selected list
                         final isSelected = _selectedAnchorItems.any((i) => i.id == item.id);
                         
                         return GestureDetector(
-                          onTap: () => _onAnchorTap(item), // ✅ Use new logic
+                          onTap: () => _onAnchorTap(item),
                           child: Padding(
                             padding: const EdgeInsets.only(right: 12.0, bottom: 8.0, top: 8.0),
                             child: Container(
@@ -354,7 +355,6 @@ class _OutfitPageState extends State<OutfitPage> {
   }
 
   Widget _buildGenerateButton() {
-    // Generate is valid if anchor toggle is OFF, OR toggle is ON and at least 1 item selected
     bool canGenerate = !_useAnchorItem || (_useAnchorItem && _selectedAnchorItems.isNotEmpty);
 
     return SizedBox(

@@ -14,6 +14,7 @@ interface ClothingItem {
 interface RequestPayload {
   user_id: string;
   anchor_ids?: number[];
+  current_temperature?: number; // ✅ NEW: Accept Temperature
   constraints: {
     usage?: string[];
     season?: string[];
@@ -27,7 +28,7 @@ interface OutfitRecommendation {
   items: ClothingItem[];
 }
 
-// Helper: Parse embedding string/array
+// ... (Helper functions remain the same) ...
 function parseEmbedding(embedding: string | number[] | null | undefined): number[] {
   if (!embedding) return [];
   if (Array.isArray(embedding)) return embedding;
@@ -37,7 +38,6 @@ function parseEmbedding(embedding: string | number[] | null | undefined): number
   return [];
 }
 
-// Helper: Math for Visual Similarity
 function cosineSimilarity(vecA: number[], vecB: number[]): number {
   if (!vecA || !vecB || vecA.length === 0 || vecB.length === 0 || vecA.length !== vecB.length) return 0;
   let dotProduct = 0; let normA = 0; let normB = 0;
@@ -50,11 +50,9 @@ function cosineSimilarity(vecA: number[], vecB: number[]): number {
   return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
-// Helper: Calculate Total Outfit Harmony
 function calculateHarmony(items: ClothingItem[]): number {
   let score = 0;
   let count = 0;
-  // Compare every item against every other item (Visual Consistency)
   for (let i = 0; i < items.length; i++) {
     for (let j = i + 1; j < items.length; j++) {
       const vecA = parseEmbedding(items[i].embedding);
@@ -66,41 +64,36 @@ function calculateHarmony(items: ClothingItem[]): number {
   return count > 0 ? score / count : 0;
 }
 
-// Helper: Internal Logic Checker (Fixes "Puffer + Shorts" issue)
-function areItemsCompatible(baseItems: ClothingItem[], newItem: ClothingItem, constraints: any): boolean {
+// Consistency Check (Updated to use effective active seasons)
+function areItemsCompatible(baseItems: ClothingItem[], newItem: ClothingItem, activeSeasons: string[], activeUsage: string[]): boolean {
   // 1. Season Logic
-  // If user DID NOT specify a season, we must ensure the outfit has internal consistency.
-  // We don't want a 'Winter' jacket with 'Summer' shorts.
-  const userHasSeasonFilter = constraints.season && constraints.season.length > 0;
+  // If we have an active season (either from User OR Weather), ensure consistency
+  const hasSeasonConstraint = activeSeasons.length > 0;
   
-  if (!userHasSeasonFilter) {
+  if (!hasSeasonConstraint) {
+    // If NO season context at all, just prevent extreme clashes
     const newItemSeason = newItem.season.toLowerCase();
-    
-    // Check against existing items
     for (const item of baseItems) {
       const currentSeason = item.season.toLowerCase();
-      
-      // Allow 'All Seasons' to match anything
       if (newItemSeason === 'all seasons' || currentSeason === 'all seasons') continue;
       if (newItemSeason === '' || currentSeason === '') continue;
-
+      
       // Conflict: Summer vs Winter
       if ((newItemSeason === 'summer' && currentSeason === 'winter') ||
           (newItemSeason === 'winter' && currentSeason === 'summer')) {
-        return false; // Incompatible
+        return false; 
       }
     }
   }
 
   // 2. Usage Logic
-  // If user DID NOT specify usage, prevent 'Sports' items mixing with 'Formal'
-  const userHasUsageFilter = constraints.usage && constraints.usage.length > 0;
+  const hasUsageConstraint = activeUsage.length > 0;
   
-  if (!userHasUsageFilter) {
+  if (!hasUsageConstraint) {
     const newItemUsage = newItem.usage.toLowerCase();
-    
     for (const item of baseItems) {
       const currentUsage = item.usage.toLowerCase();
+      // Conflict: Sports vs Formal
       if (newItemUsage === 'sports' && currentUsage === 'formal') return false;
       if (newItemUsage === 'formal' && currentUsage === 'sports') return false;
     }
@@ -124,12 +117,22 @@ Deno.serve(async (req: Request) => {
     anchorIds.push(incomingAnchorId);
   }
 
-  const { constraints, user_id, required_slots } = payload;
+  const { constraints, user_id, required_slots, current_temperature } = payload;
   
   const usage = constraints?.usage ?? [];
-  const season = constraints?.season ?? [];
+  let season = constraints?.season ?? []; // Mutable variable for logic
   const baseColour = constraints?.baseColour ?? [];
   const slots = required_slots && required_slots.length > 0 ? required_slots : ['Top', 'Bottom'];
+
+  // ✅ NEW: WEATHER INTEGRATION LOGIC
+  // If user did NOT select a season, infer it from temperature
+  if (season.length === 0 && current_temperature !== undefined && current_temperature !== null) {
+      if (current_temperature >= 25) season = ['Summer']; // Hot
+      else if (current_temperature >= 20) season = ['Summer', 'Spring']; // Warm
+      else if (current_temperature >= 15) season = ['Spring', 'Fall']; // Cool
+      else if (current_temperature >= 10) season = ['Fall', 'Winter']; // Chilly
+      else season = ['Winter']; // Cold
+  }
 
   try {
     const { data: closetData, error } = await supabase
@@ -142,78 +145,79 @@ Deno.serve(async (req: Request) => {
     let closet = closetData as ClothingItem[];
     const anchorItems = closet.filter(i => anchorIds.includes(i.id));
 
-    // --- SMART FILTERING ---
-    // Instead of filtering strictly and failing, we retrieve pools based on priority.
-    
+    // --- REFINED CANDIDATE SELECTION ---
     const getCandidatesForCategory = (category: string) => {
-        // 1. Force Anchor
+        // 1. Force Anchor if exists
         const anchor = anchorItems.find(i => i.sub_category === category);
         if (anchor) return [anchor];
 
-        // 2. Strict Match (User Constraints)
-        const strictMatch = closet.filter(item => {
+        // 2. Strict Usage Filtering
+        let candidates = closet.filter(item => {
             if (item.sub_category !== category) return false;
             
-            const matchUsage = usage.length === 0 || usage.some(u => u.toLowerCase() === item.usage.toLowerCase());
+            if (usage.length > 0) {
+                return usage.some(u => u.toLowerCase() === item.usage.toLowerCase());
+            }
+            return true;
+        });
+
+        if (candidates.length === 0) return []; 
+
+        // 3. Try Strict Match (Season & Color)
+        // Now 'season' might be populated by Weather, so this logic applies to weather too.
+        const strictMatch = candidates.filter(item => {
             const matchSeason = season.length === 0 || season.some(s => s.toLowerCase() === item.season.toLowerCase());
             const matchColor = baseColour.length === 0 || baseColour.some(c => c.toLowerCase() === item.base_colour.toLowerCase());
-            
-            return matchUsage && matchSeason && matchColor;
+            return matchSeason && matchColor;
         });
 
         if (strictMatch.length > 0) return strictMatch;
 
-        // 3. Fallback: Relax Season (e.g. No 'Spring' items? Check 'All Seasons')
-        const seasonFallback = closet.filter(item => {
-            if (item.sub_category !== category) return false;
-            
-            const matchUsage = usage.length === 0 || usage.some(u => u.toLowerCase() === item.usage.toLowerCase());
-            // Allow 'All Seasons' or items with empty season
-            const matchSeason = item.season.toLowerCase() === 'all seasons' || item.season === ''; 
-            const matchColor = baseColour.length === 0 || baseColour.some(c => c.toLowerCase() === item.base_colour.toLowerCase());
-            
-            return matchUsage && matchSeason && matchColor;
+        // 4. Try Strict Season (Relax Color)
+        const strictSeason = candidates.filter(item => {
+            const matchSeason = season.length === 0 || season.some(s => s.toLowerCase() === item.season.toLowerCase());
+            return matchSeason;
         });
 
-        if (seasonFallback.length > 0) return seasonFallback;
+        if (strictSeason.length > 0) return strictSeason;
 
-        // 4. Fallback: Relax Usage (e.g. No 'Party' shoes? Check Neutral items)
-        const usageFallback = closet.filter(item => {
-            if (item.sub_category !== category) return false;
-            // Relax Usage completely if we are desperate
-            const matchSeason = season.length === 0 || season.some(s => s.toLowerCase() === item.season.toLowerCase()) || item.season.toLowerCase() === 'all seasons';
-            const matchColor = baseColour.length === 0 || baseColour.some(c => c.toLowerCase() === item.base_colour.toLowerCase());
+        // 5. Smart Season Fallback (Relax Season Logic)
+        const smartFallback = candidates.filter(item => {
+            if (season.length === 0) return true;
+
+            const itemSeason = item.season.toLowerCase();
             
-            return matchSeason && matchColor;
+            if (itemSeason === 'all seasons' || itemSeason === '') return true;
+
+            const requestedSpring = season.some(s => s.toLowerCase() === 'spring');
+            const requestedFall = season.some(s => s.toLowerCase() === 'fall');
+            const requestedSummer = season.some(s => s.toLowerCase() === 'summer');
+
+            // Fallback Logic:
+            if (requestedSpring && (itemSeason === 'summer' || itemSeason === 'fall')) return true;
+            if (requestedFall && (itemSeason === 'summer' || itemSeason === 'spring')) return true;
+            if (requestedSummer && (itemSeason === 'spring' || itemSeason === 'fall')) return true;
+            
+            return false;
         });
 
-        if (usageFallback.length > 0) return usageFallback;
-
-        // 5. Ultimate Fallback (Just give me something from that category!)
-        // Only do this for 'Required' slots.
-        if (slots.includes(category) || category === 'Top' || category === 'Bottom') {
-             return closet.filter(i => i.sub_category === category);
-        }
-
-        return [];
+        return smartFallback;
     };
 
-    // Get pools
+    // Get pools using the new logic
     const tops = getCandidatesForCategory('Topwear');
     const bottoms = getCandidatesForCategory('Bottomwear');
     const dresses = getCandidatesForCategory('Dress');
     const jumpsuits = getCandidatesForCategory('Jumpsuit');
     const sets = getCandidatesForCategory('Set');
     
-    // Add-ons
     const outerwear = slots.includes('Outerwear') ? getCandidatesForCategory('Outerwear') : [];
     const footwear = slots.includes('Footwear') ? getCandidatesForCategory('Footwear') : [];
     const accessories = slots.includes('Accessory') ? getCandidatesForCategory('Accessory') : [];
 
-    // Safety Slice (randomize before slicing to ensure variety on regenerate)
+    // Helper for randomization
     const shuffle = (array: ClothingItem[]) => array.sort(() => Math.random() - 0.5);
     
-    // Keep anchors, shuffle rest
     const safePool = (arr: ClothingItem[], limit: number) => {
         const anchors = arr.filter(i => anchorIds.includes(i.id));
         const others = shuffle(arr.filter(i => !anchorIds.includes(i.id))).slice(0, limit);
@@ -232,7 +236,7 @@ Deno.serve(async (req: Request) => {
     // --- GENERATE OUTFITS ---
     let baseOutfits: ClothingItem[][] = [];
 
-    // One-Piece
+    // One-Piece Logic
     if (slots.includes('Dress') || anchorItems.some(i => i.sub_category === 'Dress')) {
         safeDresses.forEach(d => baseOutfits.push([d]));
     } 
@@ -242,12 +246,12 @@ Deno.serve(async (req: Request) => {
     else if (slots.includes('Set') || anchorItems.some(i => i.sub_category === 'Set')) {
         safeSets.forEach(s => baseOutfits.push([s]));
     }
-    // Separates
+    // Separates Logic
     else if (slots.includes('Top') || slots.includes('Bottom')) {
         for (const t of safeTops) {
             for (const b of safeBottoms) {
-                // Internal Consistency Check
-                if (areItemsCompatible([t], b, constraints)) {
+                // Pass effective season/usage to compatibility check
+                if (areItemsCompatible([t], b, season, usage)) {
                     baseOutfits.push([t, b]);
                 }
             }
@@ -261,8 +265,7 @@ Deno.serve(async (req: Request) => {
         let newOutfits: ClothingItem[][] = [];
         for (const outfit of currentOutfits) {
             for (const item of layerPool) {
-                // Only add if it makes sense (e.g. No Puffer with Shorts)
-                if (areItemsCompatible(outfit, item, constraints)) {
+                if (areItemsCompatible(outfit, item, season, usage)) {
                     newOutfits.push([...outfit, item]);
                 }
             }
@@ -292,12 +295,8 @@ Deno.serve(async (req: Request) => {
         recommendations.push({ score, items: outfit });
     }
 
-    // Sort by Score
     recommendations.sort((a, b) => b.score - a.score);
 
-    // --- FIX 3: Random Selection from Top Results ---
-    // Instead of always taking index 0, we take the top 5 (which are all good)
-    // and pick one randomly. This fixes the "Regenerate" issue.
     const topResults = recommendations.slice(0, 5); 
 
     if (topResults.length === 0) {
@@ -305,18 +304,16 @@ Deno.serve(async (req: Request) => {
             JSON.stringify({ 
                 items: [],
                 harmonyScore: 0,
-                suggestionLogic: `No outfits found. Try removing some filters.`,
+                suggestionLogic: `No outfits found matching your constraints.`,
                 alternatives: []
             }),
             { headers: { "Content-Type": "application/json" } }
         );
     }
 
-    // Pick random from top 5 for variety
     const randomIndex = Math.floor(Math.random() * topResults.length);
     const bestOutfit = topResults[randomIndex];
     
-    // Alternatives are the others from the top pool
     const alternatives = topResults.filter((_, idx) => idx !== randomIndex).map(r => ({
         items: r.items, score: Math.round(r.score * 100)
     }));
@@ -325,7 +322,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({
         items: bestOutfit.items,
         harmonyScore: Math.round(bestOutfit.score * 100),
-        suggestionLogic: `Styled based on ${season.join('/') || 'context'} and harmony.`,
+        suggestionLogic: `Styled based on ${season.join('/') || 'context'} and visual harmony.`,
         alternatives: alternatives.map(a => ({
             items: a.items, harmonyScore: a.score, suggestionLogic: "Alternative style."
         }))

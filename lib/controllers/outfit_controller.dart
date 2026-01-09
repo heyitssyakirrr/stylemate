@@ -13,8 +13,9 @@ class OutfitController extends ChangeNotifier {
     String? usage,
     String? season,
     String? color,
-    List<String>? anchorItemIds, // ✅ CHANGED: Accepts a list of IDs
+    List<String>? anchorItemIds, 
     required List<String> slots,
+    double? temperature, // ✅ NEW: Accept Temperature
   }) async {
     try {
       isLoading = true; notifyListeners();
@@ -26,7 +27,6 @@ class OutfitController extends ChangeNotifier {
       final seasonFilter = season != null ? [season] : [];
       final colorFilter = color != null ? [color] : [];
 
-      // ✅ NEW: Prepare List of Integers
       List<int> anchors = [];
       if (anchorItemIds != null) {
         anchors = anchorItemIds
@@ -44,8 +44,9 @@ class OutfitController extends ChangeNotifier {
             'season': seasonFilter,     
             'baseColour': colorFilter   
           },
-          'anchor_ids': anchors, // ✅ SENDING PLURAL
+          'anchor_ids': anchors,
           'required_slots': slots,
+          'current_temperature': temperature, // ✅ SEND TO BACKEND
         },
       );
 
