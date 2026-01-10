@@ -1,253 +1,255 @@
-// lib/views/outfit/outfit_result_page.dart
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../utils/constants.dart';
 import '../../controllers/outfit_controller.dart';
-import '../../models/outfit.dart';
+import '../../utils/constants.dart';
 import '../../models/clothing_item.dart';
 
 class OutfitResultPage extends StatelessWidget {
   final OutfitController controller;
-  
+
   const OutfitResultPage({super.key, required this.controller});
-
-  void _markAsWorn(BuildContext context) async {
-    await controller.markAsWorn();
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Outfit marked as worn! Analytics updated.')),
-      );
-    }
-  }
-
-  void _regenerateOutfit(BuildContext context) {
-    Navigator.of(context).pop();
-  }
 
   @override
   Widget build(BuildContext context) {
-    final Outfit? outfit = controller.currentOutfit;
+    // ✅ WRAP WITH LISTENABLE BUILDER
+    // This ensures the page rebuilds instantly when regenerate finishes
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, child) {
+        final outfit = controller.currentOutfit;
 
-    if (outfit == null) {
-      return Scaffold(
-        body: Center(
-          child: Text("No outfit found. Please try generating again.",
-            style: GoogleFonts.poppins(),
+        return Scaffold(
+          backgroundColor: AppConstants.background,
+          appBar: AppBar(
+            title: Text("Your Style Match",
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+            centerTitle: true,
+            elevation: 0,
+            backgroundColor: AppConstants.background,
+            foregroundColor: Colors.black87,
           ),
-        ),
-      );
-    }
-    
-    return Scaffold(
-      backgroundColor: AppConstants.background,
-      appBar: AppBar(
-        title: Text("Your Recommendation",
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor: AppConstants.background,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppConstants.kPadding * 1.5),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("AI Recommended Look",
-                style: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 8),
-            Text("Here is a personalized combination based on your style and constraints.",
-                style: GoogleFonts.poppins(color: Colors.black54)),
-            const SizedBox(height: 32),
+          body: controller.isLoading
+              ? const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(color: AppConstants.primaryAccent),
+                      SizedBox(height: 16),
+                      Text("Styling the next best look...", style: TextStyle(color: Colors.grey))
+                    ],
+                  ),
+                )
+              : (outfit == null || outfit.items.isEmpty)
+                  ? _buildErrorView(context)
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.all(AppConstants.kPadding),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildScoreCard(outfit.harmonyScore),
+                          const SizedBox(height: 24),
+                          
+                          if (outfit.suggestionLogic.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 16.0),
+                              child: Text(
+                                outfit.suggestionLogic,
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.poppins(
+                                    fontSize: 14, 
+                                    color: Colors.grey[700], 
+                                    fontStyle: FontStyle.italic
+                                ),
+                              ),
+                            ),
 
-            // --- Outfit Display (Visual Grid Updated) ---
-            _buildOutfitDisplay(outfit.items),
-            const SizedBox(height: 32),
-
-            _buildActionButtons(context),
-            const SizedBox(height: 32),
-
-            _buildWhyThisOutfit(outfit.suggestionLogic),
-            const SizedBox(height: 40),
-          ],
-        ),
-      ),
+                          Text("Items in this look:",
+                              style: GoogleFonts.poppins(
+                                  fontSize: 18, fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 16),
+                          
+                          ...outfit.items.map((item) => _buildItemCard(item)),
+                          
+                          const SizedBox(height: 32),
+                          _buildActionButtons(context),
+                        ],
+                      ),
+                    ),
+        );
+      },
     );
   }
-  
-  Widget _buildOutfitDisplay(List<ClothingItem> items) {
+
+  Widget _buildScoreCard(int score) {
+    Color scoreColor = score > 85
+        ? Colors.green
+        : score > 70
+            ? Colors.orange
+            : Colors.red;
+
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppConstants.kPadding),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(AppConstants.kRadius),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: const [AppConstants.cardShadow],
       ),
       child: Column(
         children: [
-          Text("Composed Items", style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600)),
-          const Divider(height: 24),
-          
-          Wrap(
-            spacing: 8.0,
-            runSpacing: 8.0,
-            alignment: WrapAlignment.center,
-            children: items.map((item) => _buildItemPill(item)).toList(),
+          Text("Harmony Score",
+              style: GoogleFonts.poppins(color: Colors.grey, fontSize: 14)),
+          const SizedBox(height: 8),
+          Text("$score%",
+              style: GoogleFonts.poppins(
+                  fontSize: 48, fontWeight: FontWeight.bold, color: scoreColor)),
+          const SizedBox(height: 8),
+          Text(
+            score > 85
+                ? "Excellent Match!"
+                : score > 70
+                    ? "Good Combination"
+                    : "Bold Choice",
+            style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600, color: Colors.black87),
           ),
-          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
 
-          // --- VISUAL GRID (Shows ALL items now) ---
-          // ✅ FIX: Removed fixed height so it expands to show all items
-          Container(
-            decoration: BoxDecoration(
-              color: AppConstants.background,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.black12, width: 1),
+  Widget _buildItemCard(ClothingItem item) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.network(
+              item.imageUrl,
+              width: 80,
+              height: 80,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) =>
+                  Container(width: 80, height: 80, color: Colors.grey[200]),
             ),
-            child: _buildVisualGrid(items),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.subCategory,
+                    style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600, fontSize: 16)),
+                const SizedBox(height: 4),
+                Text("${item.baseColour} • ${item.season}",
+                    style: GoogleFonts.poppins(
+                        color: Colors.grey[600], fontSize: 13)),
+                const SizedBox(height: 4),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppConstants.primaryAccent.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(item.usage,
+                      style: GoogleFonts.poppins(
+                          fontSize: 11, color: AppConstants.primaryAccent)),
+                )
+              ],
+            ),
           )
         ],
       ),
     );
   }
 
-  Widget _buildVisualGrid(List<ClothingItem> items) {
-    if (items.isEmpty) return const Center(child: Padding(padding: EdgeInsets.all(20), child: Text("No items to display")));
-
-    // Dynamic grid layout based on item count
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: GridView.builder(
-        padding: const EdgeInsets.all(8),
-        physics: const NeverScrollableScrollPhysics(),
-        shrinkWrap: true, // ✅ FIX: Allows grid to expand vertically to fit all items
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: items.length <= 1 ? 1 : 2, 
-          crossAxisSpacing: 8,
-          mainAxisSpacing: 8,
-          // Adjust aspect ratio so images aren't squashed
-          childAspectRatio: items.length >= 3 ? 0.8 : 1.0, 
-        ),
-        itemCount: items.length,
-        itemBuilder: (context, index) {
-          final item = items[index];
-          return Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-                    child: Image.network(
-                      item.imageUrl,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) => 
-                          const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
-                    ),
-                  ),
-                ),
-                // Label at bottom of image
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  color: AppConstants.primaryAccent.withOpacity(0.05),
-                  child: Text(
-                    // ✅ FIX: Use 'articleType' (T-shirt) instead of 'subCategory' (Topwear)
-                    item.articleType, 
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w500),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildItemPill(ClothingItem item) {
-    return Chip(
-      // Using 'articleType' and 'baseColour' from your new model
-      label: Text("${item.articleType} - ${item.baseColour}", style: const TextStyle(fontSize: 11)),
-      backgroundColor: AppConstants.primaryAccent.withOpacity(0.1),
-      labelStyle: GoogleFonts.poppins(color: AppConstants.primaryAccent),
-      avatar: Icon(Icons.checkroom_outlined, size: 16, color: AppConstants.primaryAccent),
-    );
-  }
-
   Widget _buildActionButtons(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Column(
       children: [
-        Expanded(
-          child: OutlinedButton.icon(
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text("Regenerate"),
-            onPressed: () => _regenerateOutfit(context),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppConstants.primaryAccent,
-              side: BorderSide(color: AppConstants.primaryAccent, width: 1),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () async {
+              await controller.markAsWorn();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Outfit marked as worn!')),
+                );
+                Navigator.popUntil(context, (route) => route.isFirst);
+              }
+            },
+            icon: const Icon(Icons.check, color: Colors.white),
+            label: Text("Mark as Worn Today",
+                style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
               padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ),
           ),
         ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: ElevatedButton.icon(
-            icon: const Icon(Icons.check_circle_outline, color: Colors.white),
-            label: const Text("Mark as Worn", style: TextStyle(color: Colors.white)),
-            onPressed: () => _markAsWorn(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppConstants.primaryAccent,
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            // ✅ FIXED: REGENERATE LOGIC
+            // Does NOT pop navigation. Calls controller to fetch next option.
+            onPressed: () async {
+              await controller.regenerateOutfit();
+            },
+            icon: const Icon(Icons.refresh, color: AppConstants.primaryAccent),
+            label: Text("Regenerate (Next Option)",
+                style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppConstants.primaryAccent)),
+            style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              side: const BorderSide(color: AppConstants.primaryAccent),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ),
           ),
         ),
       ],
     );
   }
-  
-  Widget _buildWhyThisOutfit(String logic) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text("Why This Outfit? (Transparency UX)",
-            style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(AppConstants.kPadding),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(AppConstants.kRadius),
-            boxShadow: const [AppConstants.cardShadow],
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.auto_awesome_outlined, color: AppConstants.primaryAccent, size: 28),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  logic,
-                  style: GoogleFonts.poppins(fontSize: 14, color: Colors.black87),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+
+  Widget _buildErrorView(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.sentiment_dissatisfied,
+              size: 64, color: Colors.grey),
+          const SizedBox(height: 16),
+          Text("No outfits found.",
+              style: GoogleFonts.poppins(fontSize: 18, color: Colors.black54)),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Adjust Filters"),
+          )
+        ],
+      ),
     );
   }
 }
