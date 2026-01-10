@@ -43,7 +43,7 @@ class _OutfitPageState extends State<OutfitPage> {
   };
 
   bool _useAnchorItem = false;
-  List<ClothingItem> _selectedAnchorItems = [];
+  final List<ClothingItem> _selectedAnchorItems = [];
 
   final List<String> _requiredSlots = ['Top', 'Bottom', 'Footwear'];
 
