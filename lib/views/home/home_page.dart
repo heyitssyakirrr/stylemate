@@ -9,7 +9,6 @@ import '../../utils/routes.dart';
 import '../../widgets/bottom_nav.dart';
 import '../../controllers/weather_controller.dart'; 
 import '../../services/weather_service.dart'; 
-import '../../models/weather.dart';
 import '../../models/clothing_item.dart';
 
 class HomeScreen extends StatefulWidget {
