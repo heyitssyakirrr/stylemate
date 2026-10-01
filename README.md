@@ -1,7 +1,11 @@
 # AuraFit
 
 **Final Year Project:**<br>
-An Android app for organising a personal wardrobe. Users can add clothes with a photo, edit the suggested tags, get outfit recommendations from their saved items, and track how often they wear each piece.
+An Android app for organising a personal wardrobe. Users can: 
+- add clothes with a photo
+- edit the suggested tags
+- get outfit recommendations from their saved items
+- track how often they wear each piece.
 
 ---
 
