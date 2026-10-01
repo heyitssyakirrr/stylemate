@@ -13,7 +13,9 @@ An Android app for organising a personal wardrobe. Users can:
 
 | Home | Add an item | Outfit | Closet | Wear analytics |
 | :---: | :---: | :---: | :---: | :---: |
-| <img src="https://github.com/user-attachments/assets/347f8765-2a85-4dcc-9dfc-bd68ee170777" alt="AuraFit home screen" width="145"> | <img src="https://github.com/user-attachments/assets/109fd343-8183-42c6-83bf-4664b85c31e0" alt="Garment upload and classification" width="145"> | <img src="https://github.com/user-attachments/assets/15da85f5-b3fe-4837-b6c3-1332d8c04dda" alt="Outfit recommendation" width="145"> | *Screenshot to add* | *Screenshot to add* |
+| <img src="https://github.com/user-attachments/assets/347f8765-2a85-4dcc-9dfc-bd68ee170777" alt="AuraFit home screen" width="145"> | <img src="https://github.com/user-attachments/assets/109fd343-8183-42c6-83bf-4664b85c31e0" alt="Garment upload and classification" width="145"> | <img src="https://github.com/user-attachments/assets/15da85f5-b3fe-4837-b6c3-1332d8c04dda" alt="Outfit recommendation" width="145"> | <img src="https://github.com/user-attachments/assets/c9dfdde9-fcbd-4225-8311-39f982defbc2" alt="Digital Closet" width="145">
+ | <img src="https://github.com/user-attachments/assets/6d264a3c-a087-428a-8aae-f0173b2f2803" alt="Wear Analytics" width="145">
+ |
 
 <table>
   <tr>
