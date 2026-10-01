@@ -8,15 +8,32 @@ I developed the Flutter app, fine-tuned the image model, and implemented the Sup
 
 ## 01 · The app
 
-| Home screen | Upload and classification | Outfit recommendation |
-| :---: | :---: | :---: |
-| <img src="https://github.com/user-attachments/assets/347f8765-2a85-4dcc-9dfc-bd68ee170777" alt="AuraFit home screen" width="180"> | <img src="https://github.com/user-attachments/assets/109fd343-8183-42c6-83bf-4664b85c31e0" alt="Garment upload and classification" width="180"> | <img src="https://github.com/user-attachments/assets/15da85f5-b3fe-4837-b6c3-1332d8c04dda" alt="Outfit recommendation" width="180"> |
+| Home | Add an item | Outfit | Closet | Wear analytics |
+| :---: | :---: | :---: | :---: | :---: |
+| <img src="https://github.com/user-attachments/assets/347f8765-2a85-4dcc-9dfc-bd68ee170777" alt="AuraFit home screen" width="145"> | <img src="https://github.com/user-attachments/assets/109fd343-8183-42c6-83bf-4664b85c31e0" alt="Garment upload and classification" width="145"> | <img src="https://github.com/user-attachments/assets/15da85f5-b3fe-4837-b6c3-1332d8c04dda" alt="Outfit recommendation" width="145"> | *Screenshot to add* | *Screenshot to add* |
 
-### What it does
-
-- **Add clothes:** Take or choose a photo, check the suggested tags, and save the item.
-- **Build outfits:** Select an occasion and preferences, then see combinations from your own closet.
-- **Track wears:** Record what you wear and see which clothes get little use.
+<table>
+  <tr>
+    <th width="50%">Core features</th>
+    <th width="50%">Target users</th>
+  </tr>
+  <tr>
+    <td valign="top">
+      <ul>
+        <li>Add clothes with editable, model-suggested tags.</li>
+        <li>Build outfits from items already in the closet.</li>
+        <li>Record wears and see underused items.</li>
+      </ul>
+    </td>
+    <td valign="top">
+      <ul>
+        <li>Busy professionals looking for quicker outfit decisions.</li>
+        <li>People who enjoy styling the clothes they own.</li>
+        <li>People who want to make better use of their wardrobe.</li>
+      </ul>
+    </td>
+  </tr>
+</table>
 
 ---
 
