@@ -1,4 +1,4 @@
-<img width="800" height="1280" alt="image" src="https://github.com/user-attachments/assets/50cda779-62c1-471e-818a-057f11f13d83" /># AuraFit
+# AuraFit
 
 **An Android wardrobe app that helps people use the clothes they already own.**
 
@@ -14,12 +14,9 @@ Final-year project · Built independently · Flutter, TensorFlow Lite, Supabase
 
 ## 01 · The app
 
-| Home Screen | Upload & Classification | Outfit Recommendation |
+| Home screen | Upload and classification | Outfit recommendation |
 | --- | --- | --- |
-| <img width="800" height="1280" alt="image" src="https://github.com/user-attachments/assets/347f8765-2a85-4dcc-9dfc-bd68ee170777" />
- | <img width="800" height="1280" alt="image" src="https://github.com/user-attachments/assets/109fd343-8183-42c6-83bf-4664b85c31e0" />
- | <img width="800" height="1280" alt="image" src="https://github.com/user-attachments/assets/15da85f5-b3fe-4837-b6c3-1332d8c04dda" />
- |
+| <img src="https://github.com/user-attachments/assets/347f8765-2a85-4dcc-9dfc-bd68ee170777" alt="AuraFit home screen" width="180"> | <img src="https://github.com/user-attachments/assets/109fd343-8183-42c6-83bf-4664b85c31e0" alt="Garment upload and classification" width="180"> | <img src="https://github.com/user-attachments/assets/15da85f5-b3fe-4837-b6c3-1332d8c04dda" alt="Outfit recommendation" width="180"> |
 
 **Project goal:** Suggest outfits from clothes the user owns and make underused items visible. The sustainability feature encourages reuse through wear tracking; it does not calculate environmental impact.
 
