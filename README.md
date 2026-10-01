@@ -1,8 +1,6 @@
 # AuraFit
 
-I built AuraFit for my final-year project. You can photograph an item instead of entering all its details, then use your saved clothes to put together outfits and track what gets worn.
-
-I developed the Flutter app, fine-tuned the image model, and implemented the Supabase backend myself.
+Final Year Project (AuraFit): an Android app for organising a personal wardrobe. Users can add clothes with a photo, edit the suggested tags, get outfit recommendations from their saved items, and track how often they wear each piece for sustainability.
 
 ---
 
