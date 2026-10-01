@@ -1,30 +1,30 @@
 # AuraFit
 
-**An Android wardrobe app that helps people use the clothes they already own.**
+I built AuraFit for my final-year project. You can photograph an item instead of entering all its details, then use your saved clothes to put together outfits and track what gets worn.
 
-Final-year project · Built independently · Flutter, TensorFlow Lite, Supabase
+I developed the Flutter app, fine-tuned the image model, and implemented the Supabase backend myself.
 
-| Add clothes | Plan an outfit | See what gets worn |
-| --- | --- | --- |
-| Photograph an item, review its suggested tags, and save it to a digital closet. | Choose an occasion and preferences, then get combinations from your own wardrobe. | Record wears and spot items that are getting little use. |
-
-| Images in the model dataset | Attributes predicted | Embedding values per item |
-| ---: | ---: | ---: |
-| **43,917** | **6** | **2,048** |
+---
 
 ## 01 · The app
 
 | Home screen | Upload and classification | Outfit recommendation |
-| --- | --- | --- |
+| :---: | :---: | :---: |
 | <img src="https://github.com/user-attachments/assets/347f8765-2a85-4dcc-9dfc-bd68ee170777" alt="AuraFit home screen" width="180"> | <img src="https://github.com/user-attachments/assets/109fd343-8183-42c6-83bf-4664b85c31e0" alt="Garment upload and classification" width="180"> | <img src="https://github.com/user-attachments/assets/15da85f5-b3fe-4837-b6c3-1332d8c04dda" alt="Outfit recommendation" width="180"> |
 
-**Project goal:** Suggest outfits from clothes the user owns and make underused items visible. The sustainability feature encourages reuse through wear tracking; it does not calculate environmental impact.
+### What it does
+
+- **Add clothes:** Take or choose a photo, check the suggested tags, and save the item.
+- **Build outfits:** Select an occasion and preferences, then see combinations from your own closet.
+- **Track wears:** Record what you wear and see which clothes get little use.
+
+---
 
 ## 02 · Architecture
 
 ```mermaid
 flowchart LR
-    subgraph Device["Android device"]
+    subgraph Phone["Android device"]
         direction TB
         App["Flutter app<br/>screens and controllers"]
         Model["TensorFlow Lite model<br/>six tags + 2,048-value embedding"]
@@ -33,132 +33,153 @@ flowchart LR
 
     subgraph Backend["Supabase"]
         direction TB
-        Auth["Auth<br/>user sign-in"]
+        Auth["Auth"]
         Photos["Storage<br/>garment photos"]
         Items[("PostgreSQL<br/>clothing_items")]
         Ranker["Edge Function<br/>filter, combine, rank"]
-        Ranker -->|"Read wardrobe + embeddings"| Items
+        Ranker -->|"Read wardrobe"| Items
     end
 
     Weather["OpenWeatherMap<br/>current temperature"]
 
     App -->|"Sign in"| Auth
-    App -->|"Upload photos"| Photos
-    App -->|"Save items / record wears"| Items
+    App -->|"Upload photo"| Photos
+    App -->|"Save items and wears"| Items
     App -->|"Request outfit"| Ranker
-    App -->|"Fetch local temperature"| Weather
+    App -->|"Fetch temperature"| Weather
 ```
 
-| On the phone | In Supabase | External data |
-| --- | --- | --- |
-| Image tagging and the app interface | Accounts, photos, wardrobe records, and outfit ranking | Current temperature for a season rule |
+- **On the phone:** The Flutter app runs the TensorFlow Lite model when a garment is added.
+- **In Supabase:** Auth handles sign-in; Storage keeps photos; PostgreSQL keeps item records; the Edge Function ranks outfits.
+- **Weather:** OpenWeatherMap supplies the current temperature when location access is available.
 
-## 03 · Three user flows
+---
 
-### A. Add a garment
+## 03 · Main flows
+
+### 📷 Add a garment
 
 ```mermaid
 flowchart LR
-    Photo["Camera or gallery"] --> Inference["On-device image model"]
-    Inference --> Review["Suggested tags<br/>user reviews or edits"]
-    Review --> Upload["Photo to Storage"]
-    Upload --> Save["Tags, image URL and embedding<br/>to PostgreSQL"]
-    Save --> Closet["Item appears in closet"]
+    Photo["Camera or gallery"] --> Model["On-device image model"]
+    Model --> Review["Review or edit<br/>suggested tags"]
+    Review --> Storage["Upload photo"]
+    Storage --> Database["Save tags, image URL<br/>and embedding"]
+    Database --> Closet["Item in closet"]
 ```
 
-- **Model output:** Gender, subcategory, article type, base colour, season, usage, and a visual embedding.
-- **User control:** Review or correct suggested tags before saving.
+The model suggests **gender, subcategory, article type, base colour, season, and usage**. It also produces a visual embedding used by the outfit ranker. Tags remain editable before saving.
 
-### B. Build an outfit
+### 👕 Build an outfit
 
 ```mermaid
 flowchart LR
-    Input["Occasion, colour, season,<br/>garment slots or chosen item"] --> Request["Send preferences<br/>and temperature"]
-    Request --> Filter["Filter wardrobe"]
-    Filter --> Combine["Build valid combinations"]
-    Combine --> Score["Average pairwise<br/>cosine similarity"]
-    Score --> Results["Keep up to 15<br/>highest-ranked candidates"]
-    Results --> Choice["Show selected outfit<br/>and two alternatives"]
+    Input["Occasion, colour, season,<br/>slots or chosen item"] --> Filter["Filter the wardrobe"]
+    Filter --> Combine["Build combinations"]
+    Combine --> Score["Score garment pairs<br/>with cosine similarity"]
+    Score --> Top["Keep up to 15<br/>ranked candidates"]
+    Top --> Result["Show one outfit<br/>and two alternatives"]
 ```
 
-- **Ranking:** The Edge Function scores complete outfit combinations using pairwise cosine similarity between garment embeddings.
-- **Harmony Score:** Average similarity × 100, used to order the outfits.
-- **Weather:** Current temperature supplies a season filter when the user has not chosen one. Colour or season filters can relax if the wardrobe is too limited.
-- **Implementation:** No KNN model or PostgreSQL vector search runs in the deployed recommendation flow.
+- **Harmony Score:** Average pairwise cosine similarity × 100. It ranks outfits; it is not a probability.
+- **Weather rule:** If no season is chosen, current temperature can supply one. Colour or season filters can relax when few items match.
+- **Method:** The deployed function scores outfit combinations in TypeScript. It does not use KNN or a PostgreSQL vector-search query.
 
-### C. Track wardrobe use
+### ♻️ Track wardrobe use
 
 ```mermaid
 flowchart LR
     Worn["Mark outfit as worn"] --> Update["Increase each item's wear count<br/>and set last-worn date"]
     Update --> DB[("clothing_items")]
-    DB --> Analytics["Calculate wardrobe metrics"]
-    Analytics --> View["Show use and underused items"]
+    DB --> Analytics["Calculate wear metrics"]
+    Analytics --> View["Show wardrobe use"]
 ```
 
-| Measure shown in the app | Calculation |
-| --- | --- |
-| Wardrobe reuse rate | Items worn at least once ÷ all saved items |
-| Underused items | Items worn fewer than two times |
-| Wears by category | Total recorded wears for each clothing category |
-| Most-worn items | Ten items with the highest wear counts |
+- **Reuse rate:** Items worn at least once ÷ all saved items.
+- **Underused:** Number of items worn fewer than two times.
+- **Other views:** Total wears by category and the ten most-worn items.
 
-## 04 · Model and evaluation
+These numbers help people notice clothes they could wear again. They are not measurements of waste or environmental impact.
 
-| Model setup | Value |
-| --- | --- |
-| Dataset | 43,917 Fashion Product Images records after filtering |
-| Split | 35,133 training / 8,784 validation images |
-| Architecture | ImageNet-pretrained ResNet-50 fine-tuned with six attribute heads |
-| Input | 299 × 299 image |
-| App output | Six tags and a 2,048-value embedding, packaged as TensorFlow Lite |
+---
 
-**Validation accuracy:** For each attribute below, this is the share of validation photos whose predicted label matched the dataset label. For example, **93.57% subcategory accuracy** means the correct subcategory was predicted for about 94 of every 100 validation photos.
+## 04 · Model and validation
 
-| Predicted attribute | Example labels | Correct on validation images |
-| --- | --- | ---: |
-| Subcategory | Topwear, Shoes | **93.57%** |
-| Usage | Casual, Formal | **90.14%** |
-| Gender | Men, Women | **89.33%** |
-| Article type | Tshirts, Jeans | **81.32%** |
-| Season | Summer, Winter | **72.22%** |
-| Base colour | Black, Blue | **45.17%** |
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <strong>Model setup</strong>
+      <table width="100%">
+        <tr><th>Part</th><th>Details</th></tr>
+        <tr><td>Dataset</td><td>43,917 filtered images</td></tr>
+        <tr><td>Split</td><td>35,133 train / 8,784 validation</td></tr>
+        <tr><td>Backbone</td><td>ImageNet-pretrained ResNet-50</td></tr>
+        <tr><td>Training</td><td>Fine-tuned with six attribute heads</td></tr>
+        <tr><td>Input</td><td>299 × 299 image</td></tr>
+        <tr><td>In the app</td><td>TensorFlow Lite; six tags and a 2,048-value embedding</td></tr>
+      </table>
+      <p>I trained the model on the Fashion Product Images dataset and converted it to TensorFlow Lite for Android. The embedding is saved with each item for outfit ranking. Suggested tags can be corrected before saving.</p>
+    </td>
+    <td width="50%" valign="top">
+      <strong>Validation accuracy</strong>
+      <table width="100%">
+        <tr><th>Attribute</th><th>Example label</th><th>Correct</th></tr>
+        <tr><td>Subcategory</td><td>Topwear</td><td>93.57%</td></tr>
+        <tr><td>Usage</td><td>Casual</td><td>90.14%</td></tr>
+        <tr><td>Gender</td><td>Women</td><td>89.33%</td></tr>
+        <tr><td>Article type</td><td>Tshirts</td><td>81.32%</td></tr>
+        <tr><td>Season</td><td>Summer</td><td>72.22%</td></tr>
+        <tr><td>Base colour</td><td>Black</td><td>45.17%</td></tr>
+      </table>
+      <p>Each number is the share of 8,784 validation photos where that attribute matched the dataset label. For subcategory, 93.57% means roughly 94 of every 100 photos got the correct subcategory. Base colour was the weakest result.</p>
+    </td>
+  </tr>
+</table>
 
-The validation split was also used to choose model checkpoints. Colour is the least reliable tag; users can correct it before saving.
+The same validation split was also used to choose model checkpoints. A separate, untouched test set would give a stronger final evaluation.
+
+---
 
 ## 05 · Data and tools
 
-| Component | What it stores or does |
-| --- | --- |
-| `clothing_items` table | User ID, image URL, tags, vector embedding, wear count, last-worn date, creation date |
-| Supabase Storage | Garment photos in the public `clothing_items` bucket |
-| Row-level policies | Users can view, insert, update, and delete their own item records |
-| Outfit Edge Function | Reads the user's wardrobe and scores combinations in TypeScript |
+### Where the data lives
 
-- Embeddings are stored in a PostgreSQL `vector` column; the Edge Function calculates similarity after reading item records.
-- Garment photo URLs are public; account ownership rules apply to wardrobe records.
+- **PostgreSQL:** The `clothing_items` table stores each user's item, image URL, tags, embedding, wear count, and dates. The embedding uses a `vector` column.
+- **Supabase Storage:** Garment photos are in the public `clothing_items` bucket, so anyone with a photo URL can view it.
+- **Access rules:** Row-level policies let users view, add, edit, and delete their own item records.
+- **Edge Function:** Reads wardrobe records, applies filters, scores combinations, and returns a selected outfit with alternatives. Similarity is calculated here, after reading the vectors.
 
-**App:** ![Flutter](https://img.shields.io/badge/Flutter-02569B?style=flat-square&logo=flutter&logoColor=white) ![Dart](https://img.shields.io/badge/Dart-0175C2?style=flat-square&logo=dart&logoColor=white)
+### Tools used
 
-**Model work:** ![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white) ![TensorFlow](https://img.shields.io/badge/TensorFlow-FF6F00?style=flat-square&logo=tensorflow&logoColor=white) ![Keras](https://img.shields.io/badge/Keras-D00000?style=flat-square&logo=keras&logoColor=white) ![OpenCV](https://img.shields.io/badge/OpenCV-5C3EE8?style=flat-square&logo=opencv&logoColor=white)
+**Android app**
 
-**Backend and weather:** ![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?style=flat-square&logo=supabase&logoColor=white) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white) ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white) ![OpenWeatherMap](https://img.shields.io/badge/OpenWeatherMap-EB6E4B?style=flat-square&logo=openweathermap&logoColor=white)
+![Flutter](https://img.shields.io/badge/Flutter-02569B?style=flat-square&logo=flutter&logoColor=white) ![Dart](https://img.shields.io/badge/Dart-0175C2?style=flat-square&logo=dart&logoColor=white)
 
-**Development:** ![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat-square&logo=github&logoColor=white) ![Visual Studio Code](https://img.shields.io/badge/VS_Code-007ACC?style=flat-square&logo=visualstudiocode&logoColor=white)
+**Model work**
 
-## 06 · What I would improve next
+![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white) ![TensorFlow](https://img.shields.io/badge/TensorFlow-FF6F00?style=flat-square&logo=tensorflow&logoColor=white) ![Keras](https://img.shields.io/badge/Keras-D00000?style=flat-square&logo=keras&logoColor=white) ![OpenCV](https://img.shields.io/badge/OpenCV-5C3EE8?style=flat-square&logo=opencv&logoColor=white)
 
-| Area | Next step |
-| --- | --- |
-| Attribute model | Improve colour data and test on a separate, untouched image set |
-| Outfit quality | Get user ratings and compare the ranking with simpler baselines |
-| Recommendation flow | Make regeneration reproducible and handle single-piece outfits explicitly |
-| Deployment | Move garment photos to private storage and add reproducible database migrations |
+**Backend and weather**
+
+![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?style=flat-square&logo=supabase&logoColor=white) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white) ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white) ![OpenWeatherMap](https://img.shields.io/badge/OpenWeatherMap-EB6E4B?style=flat-square&logo=openweathermap&logoColor=white)
+
+**Development**
+
+![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat-square&logo=github&logoColor=white) ![Visual Studio Code](https://img.shields.io/badge/VS_Code-007ACC?style=flat-square&logo=visualstudiocode&logoColor=white)
+
+---
+
+## 06 · What I would improve
+
+- Improve base-colour classification and evaluate the model on a separate test set.
+- Ask users to rate outfit suggestions, then compare this ranking with simpler approaches.
+- Make regeneration reproducible and give single-piece outfits a meaningful score.
+- Use private photo storage and include database migrations for a fresh setup.
 
 <details>
 <summary>Run the source locally</summary>
 
-The repository contains Flutter source, model assets, and Edge Function source. It does not include a prebuilt APK or database migration. A fresh setup needs a Supabase project with the matching table, bucket, policies, and deployed function, plus an OpenWeatherMap API key.
+The repository contains the Flutter source, model assets, and Edge Function source. It does not include a prebuilt APK or database migration. A fresh setup needs a matching Supabase table, bucket, policies, deployed function, and an OpenWeatherMap API key.
 
 ```bash
 git clone https://github.com/heyitssyakirrr/stylemate.git
